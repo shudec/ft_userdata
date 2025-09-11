@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+*.venv
+.env
+.venv
+venv
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# Data & Results
+user_data/backtest_results/
+user_data/hyperopt_results/
+user_data/logs/
+user_data/plot/
+user_data/data/
+user_data/hyperopt.lock
+
+# Docker
+*.log
+# docker-compose.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.feather
+*.zip
+*.pkl
+*.meta.json
+*.fthypt
+
+# Ignore notebooks outputs
+notebooks/*.ipynb
