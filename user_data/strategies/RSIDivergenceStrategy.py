@@ -56,7 +56,7 @@ class RSIDivergenceBullishStrategy(IStrategy):
     rsi_oversold = IntParameter(20, 40, default=30, space="buy")
     # candle_size_threshold = DecimalParameter(0.02, 0.08, default=0.04, space="buy")
     lookback_period_for_pivots = IntParameter(3, 20, default=10, space="buy")
-    pivot_confirmation_period = IntParameter(0, 10, default=0, space="buy")
+    pivot_confirmation_period = IntParameter(0, 3, default=0, space="buy")
     lookback_period_for_divergence = IntParameter(20, 100, default=60, space="buy")
     use_custom_stoploss_param = BooleanParameter(default=True, space="sell")
     lookback_period_for_stoploss = IntParameter(3, 10, default=5, space="sell")
@@ -466,10 +466,11 @@ class RSIDivergenceBullishStrategy(IStrategy):
                         > dataframe.loc[first_low_idx, "rsi"]
                     ):
 
-                        # Marquer la divergence seulement si on est proche du pivot
-                        if i == second_low_idx:
-                            # Marquer seulement l'index de confirmation (pas rétroactivement)
-                            # divergence_start.iloc[i] = first_low_idx  # Index du premier pivot pour référence
+                        # Marquer la divergence seulement au moment où le second pivot est CONFIRMÉ
+                        # Le pivot est confirmé avec un délai de confirmation, donc on marque la divergence à 'i' (moment de confirmation)
+                        # et non à 'second_low_idx' (moment du pivot non encore confirmé)
+                        if i == second_low_idx + self.pivot_confirmation_period.value:
+                            # Marquer au moment de la confirmation du pivot (pas au moment du pivot lui-même)
                             divergence_end.iloc[i] = True  # Signal de divergence confirmée
 
         return divergence_start, divergence_end
