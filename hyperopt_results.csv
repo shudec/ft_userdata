@@ -1,0 +1,5 @@
+timestamp,strategy,random_state,wins_draws_losses,avg_profit_pct,median_profit_pct,total_profit_usdt,avg_duration,objective,avg_profit_per_day
+2025-09-12T16:17:02.305786,RSIDivergenceBullishStrategy,5742,48/15/30,0.25,0.04,48.32643728,16:21:00,-0.07082,0.367
+2025-09-12T17:08:56.930353,RSIDivergenceBullishStrategy,2416,55/23/35,0.56,0.0,272.26488661,17:52:00,-0.29467,0.7522
+2025-09-12T17:17:32.139227,RSIDivergenceBullishStrategy,8259,34/21/14,-0.35,0.0,-35.64000126,21:18:00,0.08345,-0.3944
+2025-09-12T17:42:43.939191,RSIDivergenceBullishStrategy,4788,41/0/56,0.39,-1.29,-41.95752682,16:25:00,0.04412,0.5702

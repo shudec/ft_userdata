@@ -1,0 +1,5 @@
+timestamp,strategy,random_state,total_daily_avg_trades,absolute_profit_usdt,total_profit_pct,cagr_pct,sortino,sharpe,calmar,sqn,max_consecutive_wins_loss,min_balance_usdt,max_balance_usdt,market_change_pct,win_draw_loss_winpct
+2025-09-12T16:17:32.080757,RSIDivergenceBullishStrategy,5742,62 / 0.17,-1.276,-0.13,-0.13,-0.01,-0.0,-0.07,-0.01,8 / 3,970.189,1074.731,-59.72,31 9 22 50.0
+2025-09-12T17:09:30.325495,RSIDivergenceBullishStrategy,2416,41 / 0.11,-92.176,-9.22,-9.24,-2.23,-0.27,-5.25,-0.8,4 / 3,907.824,995.537,-59.72,19 2 20 46.3
+2025-09-12T17:18:02.882285,RSIDivergenceBullishStrategy,8259,49 / 0.13,-54.841,-5.48,-5.5,-1.28,-0.29,-3.58,-0.77,9 / 6,924.552,1005.345,-59.72,0 0 0 0
+2025-09-12T17:43:25.403928,RSIDivergenceBullishStrategy,4788,66 / 0.18,-174.487,-17.45,-17.49,-1.51,-0.66,-4.46,-1.54,8 / 8,807.812,1016.675,-59.72,26 0 40 39.4
