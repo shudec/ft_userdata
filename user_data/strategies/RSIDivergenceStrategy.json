@@ -1,7 +1,6 @@
 {
   "strategy_name": "RSIDivergenceBullishStrategy",
   "params": {
-    "roi": {},
     "stoploss": {
       "stoploss": -0.1
     },
@@ -15,20 +14,27 @@
       "max_open_trades": 3
     },
     "buy": {
-      "lookback_period_for_divergence": 48,
-      "lookback_period_for_pivots": 20,
-      "pivot_confirmation_period": 3,
-      "rsi_oversold": 23,
-      "rsi_period": 13
+      "lookback_period_for_divergence": 72,
+      "lookback_period_for_pivots": 12,
+      "rsi_period": 14,
+      "volume_factor": 2,
+      "volume_sma_period": 20,
+      "rsi_oversold": 37
     },
     "sell": {
-      "lookback_period_for_stoploss": 5,
-      "stoploss_margin": 0.998,
-      "take_profit_multiplier": 1.5,
-      "use_custom_stoploss_param": true
+      "use_custom_stoploss_param": true,
+      "lookback_period_for_stoploss": 4,
+      "stoploss_margin": 0.993,
+      "take_profit_multiplier": 2
     },
-    "protection": {}
+    "protection": {},
+    "roi": {
+      "0": 0.27,
+      "271": 0.122,
+      "590": 0.089,
+      "1949": 0
+    }
   },
   "ft_stratparam_v": 1,
-  "export_time": "2025-09-12 15:50:31.669670+00:00"
+  "export_time": "2025-09-13 20:10:53.317040+00:00"
 }

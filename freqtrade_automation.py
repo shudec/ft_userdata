@@ -79,7 +79,7 @@ class FreqtradeAutomation:
         
         # Build hyperopt command
         command = [
-            'docker', 'compose', 'run', '--rm', 'freqtrade', 'hyperopt',
+            'docker', 'compose', 'run', '--rm', 'freqtrade', 'hyperopt', '-j', '8',
             '--config', '/freqtrade/user_data/config.json',
             '--print-json',
             '--hyperopt-loss', self.config['hyperopt_loss'],
@@ -341,22 +341,63 @@ class FreqtradeAutomation:
         try:
             median_profit = hyperopt_results.get('median_profit_pct', 0)
             
-            # Extract profit factor from backtesting output
-            profit_factor = None
-            profit_factor_pattern = r'Profit factor\s+│\s+([\d.-]+)'
-            match = re.search(profit_factor_pattern, self.backtest_output)
-            if match:
-                profit_factor = float(match.group(1))
-            else:
-                profit_factor = 0
+            # Extract metrics from backtesting results or output
+            total_profit_pct = backtest_results.get('total_profit_pct', 0)
+            sortino = backtest_results.get('sortino', 0)
+            sharpe = backtest_results.get('sharpe', 0)
+            calmar = backtest_results.get('calmar', 0)
+            absolute_drawdown_pct = backtest_results.get('absolute_drawdown_pct', 0)
+            
+            # If not in results, try to extract from output
+            if not total_profit_pct:
+                total_profit_pattern = r'Total profit %\s+│\s+([\d.-]+)%'
+                match = re.search(total_profit_pattern, self.backtest_output)
+                if match:
+                    total_profit_pct = float(match.group(1))
+            
+            if not sortino:
+                sortino_pattern = r'Sortino\s+│\s+([\d.-]+)'
+                match = re.search(sortino_pattern, self.backtest_output)
+                if match:
+                    sortino = float(match.group(1))
+            
+            if not sharpe:
+                sharpe_pattern = r'Sharpe\s+│\s+([\d.-]+)'
+                match = re.search(sharpe_pattern, self.backtest_output)
+                if match:
+                    sharpe = float(match.group(1))
+            
+            if not calmar:
+                calmar_pattern = r'Calmar\s+│\s+([\d.-]+)'
+                match = re.search(calmar_pattern, self.backtest_output)
+                if match:
+                    calmar = float(match.group(1))
+            
+            if not absolute_drawdown_pct:
+                drawdown_pattern = r'Absolute Drawdown \(Account\)\s+│\s+([\d.-]+)%'
+                match = re.search(drawdown_pattern, self.backtest_output)
+                if match:
+                    absolute_drawdown_pct = float(match.group(1))
             
             # Evaluate performance based on criteria
-            if median_profit >= 0.2 and profit_factor >= 1.5:
-                return "🟢 GREEN", f"Excellent Performance (Median Profit: {median_profit}%, Profit Factor: {profit_factor})"
-            elif median_profit < 0.2 or profit_factor < 1.5:
-                return "🔴 RED", f"Poor Performance (Median Profit: {median_profit}%, Profit Factor: {profit_factor})"
+            # Good criteria: median_profit >= 0.2%, total_profit >= 5%, sortino >= 1.0, sharpe >= 0.5, calmar >= 0.5, drawdown <= 20%
+            good_conditions = [
+                median_profit >= 0.2,
+                total_profit_pct >= 5.0,
+                sortino >= 1.0,
+                sharpe >= 0.5,
+                calmar >= 0.5,
+                abs(absolute_drawdown_pct) <= 20.0
+            ]
+            
+            metrics_summary = f"Median: {median_profit}%, Total profit: {total_profit_pct}%, Sortino: {sortino}, Sharpe: {sharpe}, Calmar: {calmar}, Drawdown: {absolute_drawdown_pct}%"
+            
+            if sum(good_conditions) >= 5:  # At least 5 out of 6 criteria met
+                return "� GREEN", f"Excellent Performance ({metrics_summary})"
+            elif sum(good_conditions) >= 3:  # At least 3 out of 6 criteria met
+                return "🟠 ORANGE", f"Moderate Performance ({metrics_summary})"
             else:
-                return "🟠 ORANGE", f"Moderate Performance (Median Profit: {median_profit}%, Profit Factor: {profit_factor})"
+                return "🔴 RED", f"Poor Performance ({metrics_summary})"
                 
         except Exception as e:
             logger.error(f"Error evaluating performance: {e}")
@@ -470,10 +511,10 @@ def main():
     """Main entry point"""
     # Configuration - modify these parameters as needed
     config = {
-        'strategy': 'RSIDivergenceBullishStrategy',
+        'strategy': 'IchimokuKinjunStrategy',
         'timeframe': '1h',
         'hyperopt_loss': 'SharpeHyperOptLoss',
-        'spaces': 'buy',
+        'spaces': 'sell',
         'random_state': Random().randint(1, 10000),  # Random state for reproducibility
         'epochs': 100,
         'hyperopt_timerange': '20170801-20191231',

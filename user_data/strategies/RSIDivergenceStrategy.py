@@ -52,18 +52,19 @@ class RSIDivergenceBullishStrategy(IStrategy):
     trailing_stop = False
 
     # Hyperopt parameters
-    rsi_period = IntParameter(10, 20, default=14, space="buy")
-    rsi_oversold = IntParameter(20, 40, default=30, space="buy")
-    # candle_size_threshold = DecimalParameter(0.02, 0.08, default=0.04, space="buy")
-    lookback_period_for_pivots = IntParameter(3, 20, default=10, space="buy")
-    pivot_confirmation_period = IntParameter(0, 3, default=0, space="buy")
-    lookback_period_for_divergence = IntParameter(20, 100, default=60, space="buy")
-    use_custom_stoploss_param = BooleanParameter(default=True, space="sell")
-    lookback_period_for_stoploss = IntParameter(3, 10, default=5, space="sell")
-    take_profit_multiplier = CategoricalParameter(
-        [1, 1.5, 2, 2.5, 3], default=2, space="sell"
-    )
-    stoploss_margin = DecimalParameter(0.990, 0.999, default=0.995, space="sell")
+    rsi_period = IntParameter(10, 20, default=14, space="buy", optimize=False)
+    rsi_oversold = IntParameter(20, 40, default=30, space="buy", optimize=True)
+    # candle_size_threshold = DecimalParameter(0.02, 0.08, default=0.04, space="buy", optimize=True)
+    lookback_period_for_pivots = IntParameter(3, 20, default=12, space="buy", optimize=False)
+    # pivot_confirmation_period = IntParameter(0, 3, default=0, space="buy", optimize=True)
+    lookback_period_for_divergence = IntParameter(20, 100, default=72, space="buy", optimize=False)
+    volume_sma_period = CategoricalParameter([5, 10, 20, 30], default=20, space="buy", optimize=False)
+    volume_factor = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="buy", optimize=False)
+
+    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
+    lookback_period_for_stoploss = IntParameter(3, 10, default=5, space="sell", optimize=True)
+    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=True)
+    stoploss_margin = DecimalParameter(0.990, 0.999, default=0.995, space="sell", optimize=True)
     # fix_stoploss_value_param = CategoricalParameter([-0.20, -0.15, -0.10, -0.05, -0.02, -0.01], default=-0.10, space="sell")
 
     use_custom_stoploss = use_custom_stoploss_param.value
@@ -138,15 +139,9 @@ class RSIDivergenceBullishStrategy(IStrategy):
         # dataframe['low_pivot'] = self.find_pivots_low(dataframe['close'], self.lookback_period_for_pivots.value)
 
         # Pivots avec confirmation (sans lookahead bias)
-        # dataframe["high_pivot"] = self.find_pivots_high_confirmed(
-        #     dataframe["close"],
-        #     self.lookback_period_for_pivots.value,
-        #     self.pivot_confirmation_period.value,
-        # )
         dataframe["low_pivot"] = self.find_pivots_low_confirmed(
             dataframe["close"],
-            self.lookback_period_for_pivots.value,
-            self.pivot_confirmation_period.value,
+            self.lookback_period_for_pivots.value
         )
 
         # dataframe["high_pivot_ffill"] = dataframe["high_pivot"].fillna(value=0)
@@ -176,7 +171,7 @@ class RSIDivergenceBullishStrategy(IStrategy):
         ) / dataframe["bb_middleband"]
 
         # Volume moyen pour confirmation
-        dataframe["volume_sma"] = dataframe["volume"].rolling(window=20).mean()
+        dataframe["volume_sma"] = dataframe["volume"].rolling(window=self.volume_sma_period.value).mean()
 
         # Détection de divergence haussière
         divergences = self.detect_bullish_divergence(dataframe)
@@ -291,53 +286,13 @@ class RSIDivergenceBullishStrategy(IStrategy):
 
         return dataframe
 
-    # def find_pivots_high_confirmed(
-    #     self, series: pd.Series, window: int, confirmation: int = 3
-    # ) -> pd.Series:
-    #     """Trouve les pivots hauts avec période de confirmation SANS lookahead bias"""
-    #     pivots = pd.Series(index=series.index, dtype=float)
-
-    #     for i in range(window + confirmation, len(series)):
-    #         # Le pivot potentiel était à i-confirmation périodes
-    #         pivot_idx = i - confirmation
-
-    #         if pivot_idx < window:
-    #             continue
-
-    #         # Vérifier si c'était un maximum local AU MOMENT du pivot
-    #         window_data = series.iloc[
-    #             pivot_idx - window : pivot_idx + 1
-    #         ]  # Seulement jusqu'au pivot
-
-    #         if len(window_data) > 0 and series.iloc[pivot_idx] == window_data.max():
-    #             # Confirmer que depuis le pivot, aucun prix n'a dépassé ce niveau
-    #             # (ceci utilise seulement les données disponibles progressivement)
-    #             confirmation_data = series.iloc[
-    #                 pivot_idx + 1 : i + 1
-    #             ]  # Données après le pivot
-
-    #             if (
-    #                 len(confirmation_data) == 0
-    #                 or series.iloc[pivot_idx] >= confirmation_data.max()
-    #             ):
-    #                 # le rsi était montant au moins 3 périodes avant le pivot
-    #                 if (
-    #                     series.iloc[pivot_idx - confirmation]
-    #                     < series.iloc[pivot_idx - confirmation + 1]
-    #                     < series.iloc[pivot_idx - confirmation + 2]
-    #                     < series.iloc[pivot_idx - confirmation + 3]
-    #                 ):
-    #                     pivots.iloc[i] = series.iloc[pivot_idx]
-
-    #     return pivots
-
     def find_pivots_low_confirmed(
-        self, series: pd.Series, window: int, confirmation: int = 0
+        self, series: pd.Series, window: int
     ) -> pd.Series:
         """Trouve les pivots bas avec période de confirmation SANS lookahead bias"""
         pivots = pd.Series(index=series.index, dtype=float)
-        for i in range(window + confirmation, len(series)):
-            pivot_idx = i - confirmation
+        for i in range(window, len(series)):
+            pivot_idx = i
 
             if pivot_idx < window:
                 continue
@@ -349,51 +304,12 @@ class RSIDivergenceBullishStrategy(IStrategy):
                 # Confirmer que depuis le pivot, aucun prix n'est descendu sous ce niveau
                 confirmation_data = series.iloc[pivot_idx + 1 : i + 1]
 
-                # if len(confirmation_data) == 0 or series.iloc[pivot_idx] <= confirmation_data.min():
-                #     # au moins 3 des 4 dernières bougies sont baissières avant le pivot
-                #     if (series.iloc[pivot_idx - confirmation - 3] > series.iloc[pivot_idx - confirmation - 2] > series.iloc[pivot_idx - confirmation - 1]  > series.iloc[pivot_idx - confirmation]):
-                #         print(f"Found low pivot at index {pivot_idx} with value {series.iloc[pivot_idx]}: window_data={window_data.values}, confirmation_data={confirmation_data.values}")
-                #         pivots.iloc[i] = series.iloc[pivot_idx]
                 if (
                     len(confirmation_data) == 0
                     or series.iloc[pivot_idx] <= confirmation_data.min()
                 ):
                     pivots.iloc[pivot_idx] = series.iloc[pivot_idx]
         return pivots
-
-    # def find_pivots_high(self, series: pd.Series, window: int) -> pd.Series:
-    #     """Trouve les pivots hauts"""
-    #     pivots = pd.Series(index=series.index, dtype=float)
-    #     for i in range(window, len(series) - window):
-    #         if series.iloc[i-1] == series.iloc[i-window:i+window].max():
-    #             pivots.iloc[i] = series.iloc[i]
-    #     return pivots
-
-    # def find_pivots_high(self, series: pd.Series, window: int) -> pd.Series:
-    #     """Trouve les pivots hauts sans lookahead bias"""
-    #     pivots = pd.Series(index=series.index, dtype=float)
-    #     for i in range(window, len(series)):
-    #         # Only look at past and current data: i-window to i (inclusive)
-    #         if series.iloc[i] == series.iloc[i-window:i+1].max():
-    #             pivots.iloc[i] = series.iloc[i]
-    #     return pivots
-
-    # def find_pivots_low(self, series: pd.Series, window: int) -> pd.Series:
-    #     """Trouve les pivots bas"""
-    #     pivots = pd.Series(index=series.index, dtype=float)
-    #     for i in range(window, len(series) - window):
-    #         if series.iloc[i-1] == series.iloc[i-window:i+window].min():
-    #             pivots.iloc[i] = series.iloc[i]
-    #     return pivots
-
-    # def find_pivots_low(self, series: pd.Series, window: int) -> pd.Series:
-    #     """Trouve les pivots bas sans lookahead bias"""
-    #     pivots = pd.Series(index=series.index, dtype=float)
-    #     for i in range(window, len(series)):
-    #         # Only look at past and current data: i-window to i (inclusive)
-    #         if series.iloc[i] == series.iloc[i-window:i+1].min():
-    #             pivots.iloc[i] = series.iloc[i]
-    #     return pivots
 
     def detect_bullish_divergence(self, dataframe: DataFrame) -> (pd.Series, pd.Series):
         """
@@ -466,11 +382,7 @@ class RSIDivergenceBullishStrategy(IStrategy):
                         > dataframe.loc[first_low_idx, "rsi"]
                     ):
 
-                        # Marquer la divergence seulement au moment où le second pivot est CONFIRMÉ
-                        # Le pivot est confirmé avec un délai de confirmation, donc on marque la divergence à 'i' (moment de confirmation)
-                        # et non à 'second_low_idx' (moment du pivot non encore confirmé)
-                        if i == second_low_idx + self.pivot_confirmation_period.value:
-                            # Marquer au moment de la confirmation du pivot (pas au moment du pivot lui-même)
+                        if i == second_low_idx:
                             divergence_end.iloc[i] = True  # Signal de divergence confirmée
 
         return divergence_start, divergence_end
@@ -485,15 +397,10 @@ class RSIDivergenceBullishStrategy(IStrategy):
                 # Divergence haussière détectée
                 (dataframe["bullish_divergence"].shift(1))
                 &
-                # Bougie verte importante (au moins X% de hausse)
-                # (dataframe['candle_size'] > self.candle_size_threshold.value) &
+                (dataframe["volume"] > self.volume_factor.value * dataframe["volume_sma"])
+                &
                 (dataframe["close"] > dataframe["open"])
                 &
-                # Confirmation de tendance
-                # (dataframe['close'] > dataframe['ema_20']) &
-                # Volume au-dessus de la moyenne
-                # (dataframe['volume'] > dataframe['volume_sma']) &
-                # RSI pas en zone de surachat
                 (dataframe["rsi"] < 70)
             ),
             "enter_long",

@@ -1,0 +1,28 @@
+{
+  "strategy_name": "IchimokuKinjunStrategy",
+  "params": {
+    "roi": {},
+    "stoploss": {
+      "stoploss": -0.1
+    },
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {},
+    "sell": {
+      "take_profit_multiplier": 2.5,
+      "use_custom_stoploss_param": true,
+      "lookback_period_for_stoploss": 3,
+      "stoploss_margin": 0.996
+    },
+    "protection": {}
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2025-09-14 20:34:29.143793+00:00"
+}
