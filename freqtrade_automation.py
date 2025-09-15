@@ -347,6 +347,7 @@ class FreqtradeAutomation:
             sharpe = backtest_results.get('sharpe', 0)
             calmar = backtest_results.get('calmar', 0)
             absolute_drawdown_pct = backtest_results.get('absolute_drawdown_pct', 0)
+            total_trades = backtest_results.get('total_daily_avg_trades', 'N/A')
             
             # If not in results, try to extract from output
             if not total_profit_pct:
@@ -379,6 +380,12 @@ class FreqtradeAutomation:
                 if match:
                     absolute_drawdown_pct = float(match.group(1))
             
+            if total_trades == 'N/A' or not total_trades:
+                trades_pattern = r'Total/Daily Avg Trades\s+│\s+(\d+)\s+/\s+([\d.]+)'
+                match = re.search(trades_pattern, self.backtest_output)
+                if match:
+                    total_trades = f"{match.group(1)} / {match.group(2)}"
+            
             # Evaluate performance based on criteria
             # Good criteria: median_profit >= 0.2%, total_profit >= 5%, sortino >= 1.0, sharpe >= 0.5, calmar >= 0.5, drawdown <= 20%
             good_conditions = [
@@ -390,7 +397,7 @@ class FreqtradeAutomation:
                 abs(absolute_drawdown_pct) <= 20.0
             ]
             
-            metrics_summary = f"Median: {median_profit}%, Total profit: {total_profit_pct}%, Sortino: {sortino}, Sharpe: {sharpe}, Calmar: {calmar}, Drawdown: {absolute_drawdown_pct}%"
+            metrics_summary = f"Total trades: {total_trades}, Median: {median_profit}%, Total profit: {total_profit_pct}%, Sortino: {sortino}, Sharpe: {sharpe}, Calmar: {calmar}, Drawdown: {absolute_drawdown_pct}%"
             
             if sum(good_conditions) >= 5:  # At least 5 out of 6 criteria met
                 return "� GREEN", f"Excellent Performance ({metrics_summary})"

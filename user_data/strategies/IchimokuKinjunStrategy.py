@@ -20,6 +20,7 @@ from freqtrade.strategy import (
 # --------------------------------
 # Add your lib to import here
 import talib.abstract as ta
+from freqtrade.strategy.informative_decorator import informative
 import freqtrade.vendor.qtpylib.indicators as qtpylib
 
 
@@ -55,9 +56,9 @@ class IchimokuKinjunStrategy(IStrategy):
     
 
     use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
-    lookback_period_for_stoploss = IntParameter(3, 10, default=5, space="sell", optimize=True)
-    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=1, space="sell", optimize=False)
-    stoploss_margin = DecimalParameter(0.990, 0.999, default=0.9999, space="sell", optimize=True)
+    lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=False)
+    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=False)
+    stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=True)
     # fix_stoploss_value_param = CategoricalParameter([-0.20, -0.15, -0.10, -0.05, -0.02, -0.01], default=-0.10, space="sell")
 
     use_custom_stoploss = use_custom_stoploss_param.value
@@ -72,7 +73,7 @@ class IchimokuKinjunStrategy(IStrategy):
             'ichimoku-tenkan': {'color': 'red'},
             'ichimoku-kinjun': {'color': 'blue'},
             # By omitting color, a random color is selected.
-            'sma150': {'color': 'black'},
+            'sma200': {'color': 'lightblue'},
             # fill area between senkou_a and senkou_b
             'ichimoku-spanA': {
                 'color': 'lightgreen', #optional
@@ -145,8 +146,17 @@ class IchimokuKinjunStrategy(IStrategy):
         else:
             dataframe["stoploss_prices"] = dataframe["close"] * (1 + self.stoploss)
 
+
+        dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
+
         return dataframe
     
+    @informative('1d')
+    # @informative('1d', 'BTC/{stake}', fmt='{base}_{column}_{timeframe}')
+    def populate_indicators_1d(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        #Ichimoku
+        dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
+        return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
@@ -156,13 +166,17 @@ class IchimokuKinjunStrategy(IStrategy):
         dataframe.loc[
             (
                 (qtpylib.crossed_above(dataframe['close'], dataframe['ichimoku-kinjun'])) &
-                (dataframe['close'] > dataframe['open']) &
-                (dataframe['close'] > dataframe['ichimoku-spanA']) &
-                (dataframe['close'] > dataframe['ichimoku-spanB']) &
-                (dataframe['ichimoku-kinjun'] > dataframe['ichimoku-spanA']) &
-                (dataframe['ichimoku-kinjun'] > dataframe['ichimoku-spanB']) &
-                (dataframe['ichimoku-tenkan'] > dataframe['ichimoku-kinjun']) &
-                (dataframe['volume'] > dataframe['volume_sma'])
+                (dataframe['close'] > dataframe['open'])
+                # (dataframe['close'] > dataframe['ichimoku-spanA']) &
+                # (dataframe['close'] > dataframe['ichimoku-spanB']) &
+                # (dataframe['ichimoku-kinjun'] > dataframe['ichimoku-spanA']) &
+                # (dataframe['ichimoku-kinjun'] > dataframe['ichimoku-spanB']) &
+                # (dataframe['ichimoku-tenkan'] > dataframe['ichimoku-kinjun']) &
+                # (dataframe['ichimoku-spanA'] > dataframe['ichimoku-spanB']) &
+                # (dataframe['ichimoku-spanA-futur'] == dataframe['ichimoku-spanA-futur'].rolling(window=26).max()) & 
+                # (dataframe['ichimoku-spanB-futur'] == dataframe['ichimoku-spanB-futur'].rolling(window=26).max()) &
+                # (dataframe['volume'] > dataframe['volume_sma'])
+                # (dataframe['close'] > dataframe['sma200_1d'])
             ),
             "enter_long",
         ] = 1
@@ -174,10 +188,11 @@ class IchimokuKinjunStrategy(IStrategy):
         Signaux de vente (optionnel, la stratégie utilise principalement ROI et stoploss)
         """
 
-        # dataframe.loc[
-        #     (qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"])),
-        #     "exit_long",
-        # ] = 1
+        dataframe.loc[
+            (qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"])
+             & (dataframe['close'] < dataframe['ichimoku-tenkan'])),
+            "exit_long",
+        ] = 1
 
         return dataframe
 
