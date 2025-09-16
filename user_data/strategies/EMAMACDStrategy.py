@@ -190,7 +190,10 @@ class EMAMACDStrategy(IStrategy):
         """
 
         dataframe.loc[
-            (qtpylib.crossed_below(dataframe["close"], dataframe["ema21"])),
+            (
+                (qtpylib.crossed_below(dataframe["close"], dataframe["ema21"])) |
+                (qtpylib.crossed_below(dataframe["macd"], dataframe["macd_signal"]))
+            ),
             "exit_long",
         ] = 1
 
@@ -211,8 +214,6 @@ class EMAMACDStrategy(IStrategy):
             last_n_lows.min() * self.stoploss_margin.value
         )  # 0.5% sous le plus bas
         return lowest_price
-
-    use_custom_stoploss = True
 
     # Custom stoploss: Set the stoploss based on the lowest low of the last 8 candles before entry
     def custom_stoploss(

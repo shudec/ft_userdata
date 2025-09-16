@@ -1,0 +1,30 @@
+{
+  "strategy_name": "IchimokuStrategyV4",
+  "params": {
+    "roi": {
+      "0": 2
+    },
+    "stoploss": {
+      "stoploss": -0.1
+    },
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": 0.01,
+      "trailing_stop_positive_offset": 0.017,
+      "trailing_only_offset_is_reached": true
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {},
+    "sell": {
+      "lookback_period_for_stoploss": 5,
+      "take_profit_multiplier": 2,
+      "use_custom_stoploss_param": true,
+      "stoploss_margin": 0.992
+    },
+    "protection": {}
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2025-09-15 19:51:35.911920+00:00"
+}

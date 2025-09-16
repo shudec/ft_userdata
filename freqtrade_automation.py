@@ -755,12 +755,13 @@ def main():
     config = {
         # 'strategy': 'IchimokuKinjunStrategy',
         # 'strategy': 'EMAMACDStrategy',
-        'strategy': 'EMACrossOverStrategy',
+        # 'strategy': 'EMACrossOverStrategy',
+        'strategy': 'IchimokuRebondStrategy',
         'timeframe': '1h',
         'hyperopt_loss': 'SharpeHyperOptLoss',
-        'spaces': 'trailing',
+        'spaces': 'sell',
         'random_state': Random().randint(1, 10000),  # Random state for reproducibility
-        'epochs': 100,
+        'epochs': 200,
         'hyperopt_timerange': '20170801-20191231',
         'backtest_timerange': '20220101-20251231'
     }

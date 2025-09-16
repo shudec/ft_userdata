@@ -24,7 +24,7 @@ from freqtrade.strategy.informative_decorator import informative
 import freqtrade.vendor.qtpylib.indicators as qtpylib
 
 
-class IchimokuKinjunStrategy(IStrategy):
+class IchimokuRebondStrategy(IStrategy):
     """
     Stratégie basée sur la divergence RSI haussière
     - Achat : divergence RSI bullish + bougie verte importante
@@ -177,23 +177,17 @@ class IchimokuKinjunStrategy(IStrategy):
 
         dataframe.loc[
             (
-                (qtpylib.crossed_above(dataframe['close'], dataframe['ichimoku-kinjun'])) &
-                (dataframe['close'] > dataframe['open']) &
+                (dataframe['ichimoku-tenkan'] >= dataframe['ichimoku-kinjun']) &
+                (dataframe['close'] > dataframe['ichimoku-kinjun']) &
+                (dataframe['low'] < dataframe['ichimoku-kinjun']) &
+                #hammer
+                ((dataframe['close'] - dataframe['open']).abs() < (dataframe[['close','open']].min(axis=1) - dataframe['low']) * 2)  &
+                (dataframe['high'] - dataframe[['close','open']].max(axis=1) < (dataframe['close'] - dataframe['open']).abs() * 0.2) &
+
+                # (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
                 (dataframe['close'] > dataframe['ichimoku-spanA']) &
                 (dataframe['close'] > dataframe['ichimoku-spanB']) &
-                (dataframe['ichimoku-kinjun'] > dataframe['ichimoku-spanA'] if self.entry_kinjun_sup_spanA.value else True) &
-                (dataframe['ichimoku-kinjun'] > dataframe['ichimoku-spanB'] if self.entry_kinjun_sup_spanB.value else True) &
-                (dataframe['ichimoku-tenkan'] > dataframe['ichimoku-kinjun'] if self.entry_kinjun_sup_tenkan.value else True) &
-                (dataframe['ichimoku-spanA'] > dataframe['ichimoku-spanB'] if self.entry_spanA_sup_spanB.value else True) &
-                (
-                    (dataframe['ichimoku-spanA-futur'] == dataframe['ichimoku-spanA-futur'].rolling(window=26).max()) & 
-                    (dataframe['ichimoku-spanB-futur'] == dataframe['ichimoku-spanB-futur'].rolling(window=26).max()) 
-                    if self.entry_span_futur.value else True
-                ) &
-                (dataframe['volume'] > self.volume_factor.value * dataframe['volume_sma']) &
-                (dataframe['rsi'] < self.rsi_entry_max.value) &
-                (dataframe['rsi'] > self.rsi_entry_min.value) &
-                (dataframe['close'] > dataframe['sma200_1d'] if self.entry_sma200.value else True)
+                (dataframe['volume'] > 0)
             ),
             "enter_long",
         ] = 1
@@ -205,10 +199,10 @@ class IchimokuKinjunStrategy(IStrategy):
         Signaux de vente (optionnel, la stratégie utilise principalement ROI et stoploss)
         """
 
-        dataframe.loc[
-            (qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"] * (100 - self.kinjun_threshold.value) / 100)),
-            "exit_long",
-        ] = 1
+        # dataframe.loc[
+        #     (qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"] * (100 - self.kinjun_threshold.value) / 100)),
+        #     "exit_long",
+        # ] = 1
 
         return dataframe
 
