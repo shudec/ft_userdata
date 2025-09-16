@@ -1,0 +1,32 @@
+{
+  "strategy_name": "EMAMACDStrategy",
+  "params": {
+    "roi": {},
+    "stoploss": {
+      "stoploss": -0.1
+    },
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "macd_threshold": 0,
+      "volume_factor": 0.1,
+      "window_macd_cross": 4
+    },
+    "sell": {
+      "lookback_period_for_stoploss": 5,
+      "take_profit_multiplier": 2,
+      "use_custom_stoploss_param": true,
+      "stoploss_margin": 0.996
+    },
+    "protection": {}
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2025-09-16 15:12:49.040572+00:00"
+}

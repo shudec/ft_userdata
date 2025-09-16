@@ -1,0 +1,29 @@
+{
+  "strategy_name": "EMACrossOverStrategy",
+  "params": {
+    "roi": {},
+    "stoploss": {
+      "stoploss": -0.15
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {},
+    "sell": {
+      "lookback_period_for_stoploss": 5,
+      "stoploss_margin": 0.999,
+      "take_profit_multiplier": 2,
+      "threshold_percentage": 1,
+      "use_custom_stoploss_param": false
+    },
+    "protection": {},
+    "trailing": {
+      "trailing_stop": true,
+      "trailing_stop_positive": 0.094,
+      "trailing_stop_positive_offset": 0.153,
+      "trailing_only_offset_is_reached": true
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2025-09-16 15:47:57.278263+00:00"
+}

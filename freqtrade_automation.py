@@ -56,16 +56,50 @@ class FreqtradeAutomation:
                 raise ValueError(f"Missing required config key: {key}")
     
     def execute_command(self, command: List[str]) -> Tuple[str, str, int]:
-        """Execute a shell command and return stdout, stderr, return_code"""
+        """Execute a shell command and return stdout, stderr, return_code with real-time output"""
         try:
             logger.info(f"Executing command: {' '.join(command)}")
-            result = subprocess.run(
+            print("=" * 80)
+            print(f"🚀 Running: {' '.join(command[:5])}{'...' if len(command) > 5 else ''}")
+            print("=" * 80)
+            
+            # Use Popen for real-time output streaming
+            process = subprocess.Popen(
                 command,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # Combine stderr with stdout
                 text=True,
-                timeout=3600  # 1 hour timeout
+                bufsize=1,  # Line buffered
+                universal_newlines=True
             )
-            return result.stdout, result.stderr, result.returncode
+            
+            stdout_lines = []
+            stderr_lines = []
+            
+            # Read output line by line and display in real-time
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    # Print to console with timestamp
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    print(f"[{timestamp}] {line.rstrip()}")
+                    stdout_lines.append(line)
+            
+            # Wait for process to complete
+            return_code = process.wait()
+            
+            # Combine all output
+            stdout = ''.join(stdout_lines)
+            stderr = ""  # Since we combined stderr with stdout
+            
+            print("=" * 80)
+            if return_code == 0:
+                print("✅ Command completed successfully!")
+            else:
+                print(f"❌ Command failed with return code: {return_code}")
+            print("=" * 80)
+            
+            return stdout, stderr, return_code
+            
         except subprocess.TimeoutExpired:
             logger.error("Command timed out after 1 hour")
             return "", "Command timed out", 1
@@ -75,6 +109,9 @@ class FreqtradeAutomation:
     
     def run_hyperopt(self) -> Optional[Dict]:
         """Execute hyperopt and return parsed results"""
+        print("\n" + "=" * 30)
+        print("🔍 HYPEROPT OPTIMIZATION STARTING")
+        print("=" * 30)
         logger.info("Starting hyperopt optimization...")
         
         # Build hyperopt command
@@ -100,6 +137,15 @@ class FreqtradeAutomation:
             '--random-state', str(self.config['random_state'])
         ])
         
+        # Display hyperopt configuration
+        print(f"📊 Strategy: {self.config['strategy']}")
+        print(f"📈 Timeframe: {self.config['timeframe']}")
+        print(f"🎯 Loss Function: {self.config['hyperopt_loss']}")
+        print(f"🔢 Epochs: {self.config.get('epochs', 100)}")
+        print(f"🎲 Random State: {self.config['random_state']}")
+        print(f"💹 Spaces: {self.config['spaces']}")
+        print(f"📅 Date Range: {self.config.get('hyperopt_timerange', '20170801-20191231')}")
+        
         # Store command for logging
         self.hyperopt_command = ' '.join(command)
         
@@ -109,24 +155,81 @@ class FreqtradeAutomation:
         self.hyperopt_output = stdout if stdout else stderr
         
         if return_code != 0:
+            print("❌ HYPEROPT FAILED!")
             logger.error(f"Hyperopt failed with return code {return_code}")
             logger.error(f"Error output: {stderr}")
             return None
         
+        print("✅ HYPEROPT COMPLETED!")
+        print("=" * 30)
         return self.parse_hyperopt_output(stdout)
     
     def parse_hyperopt_output(self, output: str) -> Optional[Dict]:
         """Parse hyperopt output to extract metrics and parameters"""
         try:
-            # Extract the best result line
-            best_result_pattern = r'(\d+/\d+):\s+(\d+) trades\.\s+(\d+)/(\d+)/(\d+) Wins/Draws/Losses\.\s+Avg profit\s+([\d.-]+)%\.\s+Median profit\s+([\d.-]+)%\.\s+Total profit\s+([\d.-]+) USDT\s+\(\s*([\d.-]+)%\)\.\s+Avg duration\s+([\d:]+)\s+min\.\s+Objective:\s+([\d.-]+)'
+            print("🔍 Parsing hyperopt results...")
+            
+            # Extract the best result line - updated pattern to handle "X days, HH:MM:SS" format
+            best_result_pattern = r'(\d+/\d+):\s+(\d+) trades\.\s+(\d+)/(\d+)/(\d+) Wins/Draws/Losses\.\s+Avg profit\s+([\d.-]+)%\.\s+Median profit\s+([\d.-]+)%\.\s+Total profit\s+([\d.-]+) USDT\s+\(\s*([\d.-]+)%\)\.\s+Avg duration\s+(.+?)\s+min\.\s+Objective:\s+([\d.-]+)'
             
             match = re.search(best_result_pattern, output)
             if not match:
+                print("❌ Could not find best result pattern in hyperopt output")
+                print("🔍 Trying alternative patterns...")
                 logger.error("Could not find best result pattern in hyperopt output")
-                return None
+                
+                # Let's try to extract individual components with more flexible patterns
+                epoch_pattern = r'(\d+/\d+):'
+                trades_pattern = r'(\d+) trades\.'
+                wins_pattern = r'(\d+)/(\d+)/(\d+) Wins/Draws/Losses\.'
+                avg_profit_pattern = r'Avg profit\s+([\d.-]+)%\.'
+                median_profit_pattern = r'Median profit\s+([\d.-]+)%\.'
+                total_profit_pattern = r'Total profit\s+([\d.-]+) USDT\s+\(\s*([\d.-]+)%\)\.'
+                duration_pattern = r'Avg duration\s+(.+?)\s+min\.'
+                objective_pattern = r'Objective:\s+([\d.-]+)'
+                
+                # Try to match each component
+                epoch_match = re.search(epoch_pattern, output)
+                trades_match = re.search(trades_pattern, output)
+                wins_match = re.search(wins_pattern, output)
+                avg_profit_match = re.search(avg_profit_pattern, output)
+                median_profit_match = re.search(median_profit_pattern, output)
+                total_profit_match = re.search(total_profit_pattern, output)
+                duration_match = re.search(duration_pattern, output)
+                objective_match = re.search(objective_pattern, output)
+                
+                if not all([epoch_match, trades_match, wins_match, avg_profit_match, 
+                           median_profit_match, total_profit_match, duration_match, objective_match]):
+                    print("❌ Could not parse individual components either")
+                    return None
+                
+                # Build match object manually for consistency with the rest of the code
+                class ManualMatch:
+                    def __init__(self):
+                        self.groups = [
+                            epoch_match.group(1),  # epoch
+                            trades_match.group(1),  # trades
+                            wins_match.group(1),  # wins
+                            wins_match.group(2),  # draws
+                            wins_match.group(3),  # losses
+                            avg_profit_match.group(1),  # avg profit
+                            median_profit_match.group(1),  # median profit
+                            total_profit_match.group(1),  # total profit USDT
+                            total_profit_match.group(2),  # total profit %
+                            duration_match.group(1),  # duration
+                            objective_match.group(1)  # objective
+                        ]
+                    
+                    def group(self, index):
+                        return self.groups[index - 1]
+                
+                match = ManualMatch()
+                print("✅ Successfully parsed using alternative patterns")
+            else:
+                print("✅ Found best result metrics")
             
             # Extract JSON parameters (robust: find first valid JSON object)
+            print("🔍 Searching for optimization parameters...")
             json_match = None
             # Try to find a JSON block (even if not wrapped)
             json_candidates = re.findall(r'\{[\s\S]*?\}', output)
@@ -134,32 +237,87 @@ class FreqtradeAutomation:
                 try:
                     params_data = json.loads(candidate)
                     json_match = candidate
+                    print("✅ Found and parsed parameters JSON")
                     break
                 except Exception:
                     continue
             if not json_match:
+                print("❌ Could not find JSON parameters in hyperopt output")
                 logger.error("Could not find JSON parameters in hyperopt output")
                 return None
             
-            # Calculate avg profit per day (approximation based on avg duration)
+            # Parse duration string to calculate daily profit
             avg_duration_str = match.group(10)
-            avg_profit_pct = float(match.group(6))
             
-            # Convert duration to hours
-            time_parts = avg_duration_str.split(':')
-            avg_duration_hours = int(time_parts[0]) + int(time_parts[1]) / 60
+            # Parse the profit percentage for daily calculation
+            try:
+                avg_profit_pct = float(match.group(6))
+            except (ValueError, TypeError):
+                print(f"⚠️  Warning: Could not parse avg profit percentage '{match.group(6)}', using 0")
+                avg_profit_pct = 0.0
+            
+            # Parse duration - handle both "HH:MM:SS" and "X days, HH:MM:SS" formats
+            avg_duration_hours = 0
+            try:
+                if 'day' in avg_duration_str:
+                    # Format: "2 days, 1:27:00" or "1 day, 23" (incomplete time)
+                    parts = avg_duration_str.split(', ')
+                    days_part = parts[0].strip()
+                    time_part = parts[1].strip() if len(parts) > 1 else "0:00:00"
+                    
+                    # Extract days from "X day" or "X days"
+                    days_match = re.search(r'(\d+)\s+days?', days_part)
+                    days = int(days_match.group(1)) if days_match else 0
+                    
+                    # Parse time part more robustly
+                    if ':' in time_part:
+                        # Standard time format "HH:MM:SS" or "HH:MM"
+                        time_parts = time_part.split(':')
+                        hours = int(time_parts[0]) if time_parts[0].isdigit() else 0
+                        minutes = int(time_parts[1]) if len(time_parts) > 1 and time_parts[1].isdigit() else 0
+                        seconds = int(time_parts[2]) if len(time_parts) > 2 and time_parts[2].isdigit() else 0
+                    else:
+                        # Just hours or malformed - assume it's hours
+                        hours = int(time_part) if time_part.isdigit() else 0
+                        minutes = 0
+                        seconds = 0
+                    
+                    avg_duration_hours = days * 24 + hours + minutes / 60 + seconds / 3600
+                else:
+                    # Format: "1:27:00" or just "23" (hours only)
+                    if ':' in avg_duration_str:
+                        time_parts = avg_duration_str.split(':')
+                        hours = int(time_parts[0]) if time_parts[0].isdigit() else 0
+                        minutes = int(time_parts[1]) if len(time_parts) > 1 and time_parts[1].isdigit() else 0
+                        seconds = int(time_parts[2]) if len(time_parts) > 2 and time_parts[2].isdigit() else 0
+                        avg_duration_hours = hours + minutes / 60 + seconds / 3600
+                    else:
+                        # Just a number - assume it's hours
+                        avg_duration_hours = float(avg_duration_str) if avg_duration_str.replace('.', '').isdigit() else 0
+            except (ValueError, AttributeError, IndexError) as e:
+                print(f"⚠️  Warning: Could not parse duration '{avg_duration_str}', using 0. Error: {e}")
+                logger.warning(f"Could not parse duration '{avg_duration_str}', using 0. Error: {e}")
+                avg_duration_hours = 0
+            
             avg_profit_per_day = (avg_profit_pct * 24 / avg_duration_hours) if avg_duration_hours > 0 else 0
+
+            # Helper function to safely convert to float
+            def safe_float(value, default=0.0):
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return default
 
             result = {
                 'timestamp': datetime.now().isoformat(),
                 'strategy': self.config['strategy'],
                 'random_state': self.config['random_state'],
                 'wins_draws_losses': f"{match.group(3)}/{match.group(4)}/{match.group(5)}",
-                'avg_profit_pct': float(match.group(6)),
-                'median_profit_pct': float(match.group(7)),
-                'total_profit_usdt': float(match.group(8)),
+                'avg_profit_pct': safe_float(match.group(6)),
+                'median_profit_pct': safe_float(match.group(7)),
+                'total_profit_usdt': safe_float(match.group(8)),
                 'avg_duration': avg_duration_str,
-                'objective': float(match.group(11)),
+                'objective': safe_float(match.group(11)),
                 'avg_profit_per_day': round(avg_profit_per_day, 4)
             }
             
@@ -174,15 +332,20 @@ class FreqtradeAutomation:
             if 'stoploss' in params_data:
                 result['stoploss'] = params_data['stoploss']
             
+            print("✅ Successfully parsed hyperopt results")
             logger.info("Successfully parsed hyperopt results")
             return result
             
         except Exception as e:
+            print(f"❌ Error parsing hyperopt output: {e}")
             logger.error(f"Error parsing hyperopt output: {e}")
             return None
     
     def run_backtesting(self) -> Optional[Dict]:
         """Execute backtesting and return parsed results"""
+        print("\n" + "=" * 30)
+        print("📈 BACKTESTING STARTING")
+        print("=" * 30)
         logger.info("Starting backtesting...")
         
         # Build backtesting command
@@ -197,6 +360,12 @@ class FreqtradeAutomation:
             '--timerange', self.config.get('backtest_timerange', '20220101-20221231')
         ]
         
+        # Display backtesting configuration
+        print(f"📊 Strategy: {self.config['strategy']}")
+        print(f"📈 Timeframe: {self.config['timeframe']}")
+        print(f"💰 Pairs: BTC/USDT, ETH/USDT, LTC/USDT, XRP/USDT, BNB/USDT")
+        print(f"📅 Date Range: {self.config.get('backtest_timerange', '20220101-20221231')}")
+        
         # Store command for logging
         self.backtest_command = ' '.join(command)
         
@@ -206,20 +375,34 @@ class FreqtradeAutomation:
         self.backtest_output = stdout if stdout else stderr
         
         if return_code != 0:
+            print("❌ BACKTESTING FAILED!")
             logger.error(f"Backtesting failed with return code {return_code}")
             logger.error(f"Error output: {stderr}")
             return None
         
+        print("✅ BACKTESTING COMPLETED!")
+        print("=" * 30)
         return self.parse_backtest_output(stdout)
     
     def parse_backtest_output(self, output: str) -> Optional[Dict]:
         """Parse backtesting output to extract summary metrics"""
         try:
+            print("🔍 Parsing backtest results...")
+            
+            # Helper function to safely convert to float
+            def safe_float(value, default=0.0):
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return default
+            
             result = {
                 'timestamp': datetime.now().isoformat(),
                 'strategy': self.config['strategy'],
                 'random_state': self.config['random_state']
             }
+            
+            print("📊 Extracting trading metrics...")
             
             # Extract Total/Daily Avg Trades
             trades_pattern = r'Total/Daily Avg Trades\s+│\s+(\d+)\s+/\s+([\d.]+)'
@@ -231,43 +414,47 @@ class FreqtradeAutomation:
             profit_pattern = r'Absolute profit\s+│\s+([\d.-]+) USDT'
             match = re.search(profit_pattern, output)
             if match:
-                result['absolute_profit_usdt'] = float(match.group(1))
+                result['absolute_profit_usdt'] = safe_float(match.group(1))
             
             # Extract Total profit %
             total_profit_pattern = r'Total profit %\s+│\s+([\d.-]+)%'
             match = re.search(total_profit_pattern, output)
             if match:
-                result['total_profit_pct'] = float(match.group(1))
+                result['total_profit_pct'] = safe_float(match.group(1))
+            
+            print("📈 Extracting performance ratios...")
             
             # Extract CAGR %
             cagr_pattern = r'CAGR %\s+│\s+([\d.-]+)%'
             match = re.search(cagr_pattern, output)
             if match:
-                result['cagr_pct'] = float(match.group(1))
+                result['cagr_pct'] = safe_float(match.group(1))
             
             # Extract Sortino
             sortino_pattern = r'Sortino\s+│\s+([\d.-]+)'
             match = re.search(sortino_pattern, output)
             if match:
-                result['sortino'] = float(match.group(1))
+                result['sortino'] = safe_float(match.group(1))
             
             # Extract Sharpe
             sharpe_pattern = r'Sharpe\s+│\s+([\d.-]+)'
             match = re.search(sharpe_pattern, output)
             if match:
-                result['sharpe'] = float(match.group(1))
+                result['sharpe'] = safe_float(match.group(1))
             
             # Extract Calmar
             calmar_pattern = r'Calmar\s+│\s+([\d.-]+)'
             match = re.search(calmar_pattern, output)
             if match:
-                result['calmar'] = float(match.group(1))
+                result['calmar'] = safe_float(match.group(1))
             
             # Extract SQN
             sqn_pattern = r'SQN\s+│\s+([\d.-]+)'
             match = re.search(sqn_pattern, output)
             if match:
-                result['sqn'] = float(match.group(1))
+                result['sqn'] = safe_float(match.group(1))
+            
+            print("🎯 Extracting risk metrics...")
             
             # Extract Max Consecutive Wins / Loss
             consecutive_pattern = r'Max Consecutive Wins / Loss\s+│\s+(\d+)\s+/\s+(\d+)'
@@ -305,10 +492,12 @@ class FreqtradeAutomation:
             if match:
                 result['win_draw_loss_winpct'] = f"{match.group(1)} {match.group(2)} {match.group(3)} {match.group(4)}"
             
+            print("✅ Successfully parsed backtesting results")
             logger.info("Successfully parsed backtesting results")
             return result
             
         except Exception as e:
+            print(f"❌ Error parsing backtesting output: {e}")
             logger.error(f"Error parsing backtesting output: {e}")
             return None
     
@@ -475,70 +664,129 @@ class FreqtradeAutomation:
     
     def run_full_automation(self) -> bool:
         """Run the complete hyperopt -> backtesting workflow"""
+        print("\n" + "🚀" * 50)
+        print("🤖 FREQTRADE AUTOMATION STARTED")
+        print("🚀" * 50)
+        
         logger.info(f"Starting full automation for strategy: {self.config['strategy']}")
         logger.info(f"Random state: {self.config['random_state']}")
         
+        print(f"🎯 Strategy: {self.config['strategy']}")
+        print(f"🎲 Random State: {self.config['random_state']}")
+        print(f"⏰ Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
         # Step 1: Run hyperopt
+        print("\n📍 STEP 1/5: Running Hyperoptimization...")
         hyperopt_results = self.run_hyperopt()
         if not hyperopt_results:
+            print("💥 AUTOMATION STOPPED: Hyperopt failed")
             logger.error("Hyperopt failed, stopping automation")
             return False
         
         # Step 2: Save hyperopt results
-        if not self.save_to_csv(hyperopt_results, self.hyperopt_csv):
+        print("\n📍 STEP 2/5: Saving Hyperopt Results...")
+        if self.save_to_csv(hyperopt_results, self.hyperopt_csv):
+            print(f"✅ Hyperopt results saved to {self.hyperopt_csv}")
+        else:
+            print("⚠️  Warning: Failed to save hyperopt results to CSV")
             logger.warning("Failed to save hyperopt results to CSV")
         
         # Step 3: Run backtesting
+        print("\n📍 STEP 3/5: Running Backtesting...")
         backtest_results = self.run_backtesting()
         if not backtest_results:
+            print("💥 AUTOMATION STOPPED: Backtesting failed")
             logger.error("Backtesting failed, stopping automation")
             return False
         
         # Step 4: Save backtesting results
-        if not self.save_to_csv(backtest_results, self.backtest_csv):
+        print("\n📍 STEP 4/5: Saving Backtest Results...")
+        if self.save_to_csv(backtest_results, self.backtest_csv):
+            print(f"✅ Backtest results saved to {self.backtest_csv}")
+        else:
+            print("⚠️  Warning: Failed to save backtest results to CSV")
             logger.warning("Failed to save backtesting results to CSV")
         
         # Step 5: Save formatted log with command outputs and performance evaluation
-        if not self.save_formatted_log(self.hyperopt_output, self.backtest_output, 
-                                     self.hyperopt_command, self.backtest_command,
-                                     hyperopt_results, backtest_results):
+        print("\n📍 STEP 5/5: Generating Report and Evaluation...")
+        strategy = self.config['strategy']
+        random_state = self.config['random_state']
+        log_filename = f"{strategy}-{random_state}.md"
+        
+        if self.save_formatted_log(self.hyperopt_output, self.backtest_output, 
+                                 self.hyperopt_command, self.backtest_command,
+                                 hyperopt_results, backtest_results):
+            print(f"✅ Detailed report saved to {log_filename}")
+        else:
+            print("⚠️  Warning: Failed to save formatted log file")
             logger.warning("Failed to save formatted log file")
         
         # Step 6: Evaluate and display performance in console
+        print("\n" + "=" * 50)
+        print("📊 PERFORMANCE EVALUATION")
+        print("=" * 50)
+
         performance_status, performance_description = self.evaluate_performance(hyperopt_results, backtest_results)
+        print(f"Status: {performance_status}")
+        print(f"Details: {performance_description}")
+        
         logger.info("=" * 60)
         logger.info(f"PERFORMANCE EVALUATION: {performance_status}")
         logger.info(f"Details: {performance_description}")
         logger.info("=" * 60)
+        
+        print("\n" + "🎉" * 50)
+        print("✅ AUTOMATION COMPLETED SUCCESSFULLY!")
+        print("🎉" * 50)
+        print(f"⏰ Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         logger.info("Full automation completed successfully!")
         return True
 
 def main():
     """Main entry point"""
+    # Print startup banner
+    print("=" * 80)
+    print("🤖 FREQTRADE AUTOMATION SCRIPT")
+    print("🔥 Hyperopt + Backtesting Workflow")
+    print("=" * 80)
+    
     # Configuration - modify these parameters as needed
     config = {
-        'strategy': 'IchimokuKinjunStrategy',
+        # 'strategy': 'IchimokuKinjunStrategy',
+        # 'strategy': 'EMAMACDStrategy',
+        'strategy': 'EMACrossOverStrategy',
         'timeframe': '1h',
         'hyperopt_loss': 'SharpeHyperOptLoss',
-        'spaces': 'sell',
+        'spaces': 'trailing',
         'random_state': Random().randint(1, 10000),  # Random state for reproducibility
         'epochs': 100,
         'hyperopt_timerange': '20170801-20191231',
-        'backtest_timerange': '20220101-20221231'
+        'backtest_timerange': '20220101-20251231'
     }
+    
+    print("⚙️  CONFIGURATION:")
+    for key, value in config.items():
+        print(f"   {key}: {value}")
+    print("=" * 80)
     
     # Initialize and run automation
     automation = FreqtradeAutomation(config)
     success = automation.run_full_automation()
     
     if success:
-        print("✅ Automation completed successfully!")
-        print(f"📊 Results saved to:")
+        print("\n" + "🎉" * 20)
+        print("✅ AUTOMATION COMPLETED SUCCESSFULLY!")
+        print("📊 Results saved to:")
         print(f"   - Hyperopt: {automation.hyperopt_csv}")
         print(f"   - Backtest: {automation.backtest_csv}")
+        print("🎉" * 20)
     else:
-        print("❌ Automation failed. Check logs for details.")
+        print("\n" + "💥" * 20)
+        print("❌ AUTOMATION FAILED")
+        print("📋 Check logs for details:")
+        print("   - freqtrade_automation.log")
+        print("💥" * 20)
         sys.exit(1)
 
 if __name__ == "__main__":

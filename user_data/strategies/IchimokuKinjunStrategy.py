@@ -53,12 +53,21 @@ class IchimokuKinjunStrategy(IStrategy):
     trailing_stop = False
 
     # Hyperopt parameters
-    
+    rsi_entry_max = IntParameter(30, 70, default=50, space="buy", optimize=True)
+    rsi_entry_min = IntParameter(10, 50, default=20, space="buy", optimize=True)
+    volume_factor = DecimalParameter(0.5, 3, default=1.0, space="buy", optimize=True)
+    entry_kinjun_sup_tenkan = BooleanParameter(default=False, space="buy", optimize=True)
+    entry_sma200 = BooleanParameter(default=False, space="buy", optimize=False)
+    entry_span_futur = BooleanParameter(default=False, space="buy", optimize=False)
+    entry_spanA_sup_spanB = BooleanParameter(default=False, space="buy", optimize=False)
+    entry_kinjun_sup_spanA = BooleanParameter(default=False, space="buy", optimize=False)
+    entry_kinjun_sup_spanB = BooleanParameter(default=False, space="buy", optimize=False)
 
     use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
-    lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=False)
-    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=False)
+    lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=True)
+    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=True)
     stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=True)
+    kinjun_threshold = IntParameter(0, 10, default=2, space="sell", optimize=True)
     # fix_stoploss_value_param = CategoricalParameter([-0.20, -0.15, -0.10, -0.05, -0.02, -0.01], default=-0.10, space="sell")
 
     use_custom_stoploss = use_custom_stoploss_param.value
@@ -89,7 +98,9 @@ class IchimokuKinjunStrategy(IStrategy):
             },
         },
         "subplots": {
-            
+            "rsi": {
+                "rsi": {"color": "purple"},
+            },
             "Volume": {
                 "volume": {"color": "blue", "type": "bar"},
                 "volume_sma": {"color": "orange"},
@@ -148,6 +159,7 @@ class IchimokuKinjunStrategy(IStrategy):
 
 
         dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
+        dataframe['rsi'] = ta.RSI(dataframe, timeperiod=14)
 
         return dataframe
     
@@ -166,17 +178,22 @@ class IchimokuKinjunStrategy(IStrategy):
         dataframe.loc[
             (
                 (qtpylib.crossed_above(dataframe['close'], dataframe['ichimoku-kinjun'])) &
-                (dataframe['close'] > dataframe['open'])
-                # (dataframe['close'] > dataframe['ichimoku-spanA']) &
-                # (dataframe['close'] > dataframe['ichimoku-spanB']) &
-                # (dataframe['ichimoku-kinjun'] > dataframe['ichimoku-spanA']) &
-                # (dataframe['ichimoku-kinjun'] > dataframe['ichimoku-spanB']) &
-                # (dataframe['ichimoku-tenkan'] > dataframe['ichimoku-kinjun']) &
-                # (dataframe['ichimoku-spanA'] > dataframe['ichimoku-spanB']) &
-                # (dataframe['ichimoku-spanA-futur'] == dataframe['ichimoku-spanA-futur'].rolling(window=26).max()) & 
-                # (dataframe['ichimoku-spanB-futur'] == dataframe['ichimoku-spanB-futur'].rolling(window=26).max()) &
-                # (dataframe['volume'] > dataframe['volume_sma'])
-                # (dataframe['close'] > dataframe['sma200_1d'])
+                (dataframe['close'] > dataframe['open']) &
+                (dataframe['close'] > dataframe['ichimoku-spanA']) &
+                (dataframe['close'] > dataframe['ichimoku-spanB']) &
+                (dataframe['ichimoku-kinjun'] > dataframe['ichimoku-spanA'] if self.entry_kinjun_sup_spanA.value else True) &
+                (dataframe['ichimoku-kinjun'] > dataframe['ichimoku-spanB'] if self.entry_kinjun_sup_spanB.value else True) &
+                (dataframe['ichimoku-tenkan'] > dataframe['ichimoku-kinjun'] if self.entry_kinjun_sup_tenkan.value else True) &
+                (dataframe['ichimoku-spanA'] > dataframe['ichimoku-spanB'] if self.entry_spanA_sup_spanB.value else True) &
+                (
+                    (dataframe['ichimoku-spanA-futur'] == dataframe['ichimoku-spanA-futur'].rolling(window=26).max()) & 
+                    (dataframe['ichimoku-spanB-futur'] == dataframe['ichimoku-spanB-futur'].rolling(window=26).max()) 
+                    if self.entry_span_futur.value else True
+                ) &
+                (dataframe['volume'] > self.volume_factor.value * dataframe['volume_sma']) &
+                (dataframe['rsi'] < self.rsi_entry_max.value) &
+                (dataframe['rsi'] > self.rsi_entry_min.value) &
+                (dataframe['close'] > dataframe['sma200_1d'] if self.entry_sma200.value else True)
             ),
             "enter_long",
         ] = 1
@@ -189,8 +206,7 @@ class IchimokuKinjunStrategy(IStrategy):
         """
 
         dataframe.loc[
-            (qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"])
-             & (dataframe['close'] < dataframe['ichimoku-tenkan'])),
+            (qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"] * (100 - self.kinjun_threshold.value) / 100)),
             "exit_long",
         ] = 1
 
@@ -270,7 +286,7 @@ class IchimokuKinjunStrategy(IStrategy):
         )
         if self.use_custom_stoploss_param.value:
             stoploss_price = self.calculate_lowest_price_last_n_candles(
-                pair, self.lookback_period_for_pivots.value
+                pair, self.lookback_period_for_stoploss.value
             )
         else:
             stoploss_price = current_rate + self.stoploss * current_rate
