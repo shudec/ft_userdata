@@ -53,15 +53,18 @@ class IchimokuRebondStrategy(IStrategy):
     trailing_stop = False
 
     # Hyperopt parameters
-    rsi_entry_max = IntParameter(30, 70, default=50, space="buy", optimize=True)
-    rsi_entry_min = IntParameter(10, 50, default=20, space="buy", optimize=True)
-    volume_factor = DecimalParameter(0.5, 3, default=1.0, space="buy", optimize=True)
-    entry_kinjun_sup_tenkan = BooleanParameter(default=False, space="buy", optimize=True)
-    entry_sma200 = BooleanParameter(default=False, space="buy", optimize=False)
-    entry_span_futur = BooleanParameter(default=False, space="buy", optimize=True)
-    entry_spanA_sup_spanB = BooleanParameter(default=False, space="buy", optimize=True)
-    entry_kinjun_sup_spanA = BooleanParameter(default=False, space="buy", optimize=True)
-    entry_kinjun_sup_spanB = BooleanParameter(default=False, space="buy", optimize=True)
+    # rsi_entry_max = IntParameter(30, 70, default=50, space="buy", optimize=False)
+    # rsi_entry_min = IntParameter(10, 50, default=20, space="buy", optimize=False)
+    # volume_factor = DecimalParameter(0.5, 3, default=0.5, space="buy", optimize=False)
+    # entry_kinjun_sup_tenkan = BooleanParameter(default=False, space="buy", optimize=False)
+    # entry_sma200 = BooleanParameter(default=False, space="buy", optimize=False)
+    # entry_span_futur = BooleanParameter(default=False, space="buy", optimize=False)
+    # entry_spanA_sup_spanB = BooleanParameter(default=False, space="buy", optimize=False)
+    # entry_kinjun_sup_spanA = BooleanParameter(default=False, space="buy", optimize=False)
+    # entry_kinjun_sup_spanB = BooleanParameter(default=False, space="buy", optimize=False)
+    hammer_body_threshold = DecimalParameter(0.1, 1, default=0.2, space="buy", optimize=True)
+    hammer_head_threshold = DecimalParameter(0.01, 0.99, default=0.1, space="buy", optimize=True)
+    hammer_strength_threshold = DecimalParameter(0.001, 0.05, default=0.01, space="buy", optimize=True)
 
     use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
     lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=True)
@@ -69,8 +72,12 @@ class IchimokuRebondStrategy(IStrategy):
     stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=True)
     kinjun_threshold = IntParameter(0, 10, default=2, space="sell", optimize=True)
     # fix_stoploss_value_param = CategoricalParameter([-0.20, -0.15, -0.10, -0.05, -0.02, -0.01], default=-0.10, space="sell")
+    use_sell_signal_param = BooleanParameter(default=True, space="sell", optimize=True)
 
     use_custom_stoploss = use_custom_stoploss_param.value
+    
+    # Strategy configuration - plain boolean values expected by Freqtrade
+    use_exit_signal = use_sell_signal_param.value
 
     # Optimal stoploss designed for the strategy.
     stoploss = -0.1  # Stoploss initial de -10% (sera ajusté dynamiquement)
@@ -174,20 +181,40 @@ class IchimokuRebondStrategy(IStrategy):
         """
         Signaux d'achat basés sur divergence RSI haussière + bougie verte importante
         """
+        
+        # Variables pour la bougie précédente (setup)
+        rebond_tenkan = dataframe['ichimoku-tenkan'].shift(1)
+        rebond_kinjun = dataframe['ichimoku-kinjun'].shift(1)
+        rebond_close = dataframe['close'].shift(1)
+        rebond_open = dataframe['open'].shift(1)
+        rebond_high = dataframe['high'].shift(1)
+        rebond_low = dataframe['low'].shift(1)
+        rebond_spanA = dataframe['ichimoku-spanA'].shift(1)
+        rebond_spanB = dataframe['ichimoku-spanB'].shift(1)
+        rebond_volume = dataframe['volume'].shift(1)
 
         dataframe.loc[
             (
-                (dataframe['ichimoku-tenkan'] >= dataframe['ichimoku-kinjun']) &
-                (dataframe['close'] > dataframe['ichimoku-kinjun']) &
-                (dataframe['low'] < dataframe['ichimoku-kinjun']) &
-                #hammer
-                ((dataframe['close'] - dataframe['open']).abs() < (dataframe[['close','open']].min(axis=1) - dataframe['low']) * 2)  &
-                (dataframe['high'] - dataframe[['close','open']].max(axis=1) < (dataframe['close'] - dataframe['open']).abs() * 0.2) &
+                # Conditions sur la bougie précédente (setup du rebond)
+                (rebond_tenkan >= rebond_kinjun) &
+                (rebond_close < rebond_tenkan) &
+                (rebond_open < rebond_tenkan) &
+                (rebond_close > rebond_kinjun) &
+                (rebond_open > rebond_kinjun) &
+                (rebond_low < rebond_kinjun) &
+                # plat kinjun sur les 4 dernièreres bougies (bougie précédente)
+                (rebond_kinjun.rolling(window=4).std() < 0.001) &
+                # confirmation bougie actuelle verte (sans biais)
+                (dataframe['close'] > dataframe['open']) &
 
+                #hammer sur la bougie précédente
+                ((rebond_close - rebond_open).abs() < (rebond_close.combine(rebond_open, min) - rebond_low) * self.hammer_body_threshold.value)  & # taille du corps par rapport à la mèche basse
+                (rebond_high - rebond_close.combine(rebond_open, max) < (rebond_close - rebond_open).abs() * self.hammer_head_threshold.value) & # mèche de la tête par rapport au corps
+                ((rebond_high - rebond_low) / rebond_low > self.hammer_strength_threshold.value) &  # Bougie importante
                 # (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
-                (dataframe['close'] > dataframe['ichimoku-spanA']) &
-                (dataframe['close'] > dataframe['ichimoku-spanB']) &
-                (dataframe['volume'] > 0)
+                (rebond_close > rebond_spanA) &
+                (rebond_close > rebond_spanB) &
+                (rebond_volume > 0)
             ),
             "enter_long",
         ] = 1
@@ -199,10 +226,13 @@ class IchimokuRebondStrategy(IStrategy):
         Signaux de vente (optionnel, la stratégie utilise principalement ROI et stoploss)
         """
 
-        # dataframe.loc[
-        #     (qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"] * (100 - self.kinjun_threshold.value) / 100)),
-        #     "exit_long",
-        # ] = 1
+        if self.use_sell_signal_param.value:
+            dataframe.loc[
+                (
+                    qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"] * (100 - self.kinjun_threshold.value) / 100)
+                ),
+                "exit_long",
+            ] = 1
 
         return dataframe
 

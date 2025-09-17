@@ -1,0 +1,34 @@
+{
+  "strategy_name": "IchimokuRebondStrategy",
+  "params": {
+    "roi": {},
+    "stoploss": {
+      "stoploss": -0.1
+    },
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "hammer_body_threshold": 0.655,
+      "hammer_head_threshold": 0.937,
+      "hammer_strength_threshold": 0.007
+    },
+    "sell": {
+      "use_custom_stoploss_param": true,
+      "kinjun_threshold": 0,
+      "lookback_period_for_stoploss": 4,
+      "stoploss_margin": 0.996,
+      "take_profit_multiplier": 2.5,
+      "use_sell_signal_param": false
+    },
+    "protection": {}
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2025-09-17 16:07:22.300793+00:00"
+}

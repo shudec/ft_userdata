@@ -759,9 +759,9 @@ def main():
         'strategy': 'IchimokuRebondStrategy',
         'timeframe': '1h',
         'hyperopt_loss': 'SharpeHyperOptLoss',
-        'spaces': 'sell',
+        'spaces': 'buy sell',
         'random_state': Random().randint(1, 10000),  # Random state for reproducibility
-        'epochs': 200,
+        'epochs': 100,
         'hyperopt_timerange': '20170801-20191231',
         'backtest_timerange': '20220101-20251231'
     }
