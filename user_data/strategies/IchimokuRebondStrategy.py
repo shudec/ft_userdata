@@ -65,6 +65,7 @@ class IchimokuRebondStrategy(IStrategy):
     hammer_body_threshold = DecimalParameter(0.1, 1, default=0.2, space="buy", optimize=True)
     hammer_head_threshold = DecimalParameter(0.01, 0.99, default=0.1, space="buy", optimize=True)
     hammer_strength_threshold = DecimalParameter(0.001, 0.05, default=0.01, space="buy", optimize=True)
+    confirmation_candle = BooleanParameter(default=True, space="buy", optimize=True)
 
     use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
     lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=True)
@@ -181,17 +182,28 @@ class IchimokuRebondStrategy(IStrategy):
         """
         Signaux d'achat basés sur divergence RSI haussière + bougie verte importante
         """
-        
-        # Variables pour la bougie précédente (setup)
-        rebond_tenkan = dataframe['ichimoku-tenkan'].shift(1)
-        rebond_kinjun = dataframe['ichimoku-kinjun'].shift(1)
-        rebond_close = dataframe['close'].shift(1)
-        rebond_open = dataframe['open'].shift(1)
-        rebond_high = dataframe['high'].shift(1)
-        rebond_low = dataframe['low'].shift(1)
-        rebond_spanA = dataframe['ichimoku-spanA'].shift(1)
-        rebond_spanB = dataframe['ichimoku-spanB'].shift(1)
-        rebond_volume = dataframe['volume'].shift(1)
+        if self.confirmation_candle.value:
+            # Variables pour la bougie précédente (setup)
+            rebond_tenkan = dataframe['ichimoku-tenkan'].shift(1)
+            rebond_kinjun = dataframe['ichimoku-kinjun'].shift(1)
+            rebond_close = dataframe['close'].shift(1)
+            rebond_open = dataframe['open'].shift(1)
+            rebond_high = dataframe['high'].shift(1)
+            rebond_low = dataframe['low'].shift(1)
+            rebond_spanA = dataframe['ichimoku-spanA'].shift(1)
+            rebond_spanB = dataframe['ichimoku-spanB'].shift(1)
+            rebond_volume = dataframe['volume'].shift(1)
+        else:
+            # Variables pour la bougie actuelle (setup)
+            rebond_tenkan = dataframe['ichimoku-tenkan']
+            rebond_kinjun = dataframe['ichimoku-kinjun']
+            rebond_close = dataframe['close']
+            rebond_open = dataframe['open']
+            rebond_high = dataframe['high']
+            rebond_low = dataframe['low']
+            rebond_spanA = dataframe['ichimoku-spanA']
+            rebond_spanB = dataframe['ichimoku-spanB']
+            rebond_volume = dataframe['volume']
 
         dataframe.loc[
             (
@@ -205,7 +217,7 @@ class IchimokuRebondStrategy(IStrategy):
                 # plat kinjun sur les 4 dernièreres bougies (bougie précédente)
                 (rebond_kinjun.rolling(window=4).std() < 0.001) &
                 # confirmation bougie actuelle verte (sans biais)
-                (dataframe['close'] > dataframe['open']) &
+                (dataframe['close'] > dataframe['open'] if self.confirmation_candle.value else True) &
 
                 #hammer sur la bougie précédente
                 ((rebond_close - rebond_open).abs() < (rebond_close.combine(rebond_open, min) - rebond_low) * self.hammer_body_threshold.value)  & # taille du corps par rapport à la mèche basse
