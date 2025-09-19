@@ -21,6 +21,7 @@ import csv
 import os
 import logging
 import sys
+import argparse
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import pandas as pd
@@ -599,6 +600,98 @@ class FreqtradeAutomation:
             logger.error(f"Error evaluating performance: {e}")
             return "⚪ UNKNOWN", "Performance evaluation failed"
     
+    def save_hyperopt_log(self, hyperopt_output: str, hyperopt_command: str, hyperopt_results: Dict = None) -> bool:
+        """Save hyperopt-only log to markdown file"""
+        try:
+            strategy = self.config['strategy']
+            random_state = self.config['random_state']
+            log_filename = f"{strategy}-{random_state}-hyperopt.md"
+            
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            log_content = f"""# Freqtrade Hyperopt Log
+
+**Strategy:** {strategy}  
+**Random State:** {random_state}  
+**Timestamp:** {timestamp}
+
+## Configuration
+```json
+{json.dumps(self.config, indent=2)}
+```
+
+## Hyperopt Command
+```bash
+{hyperopt_command}
+```
+
+## Hyperopt Output
+```
+{hyperopt_output}
+```
+
+## Hyperopt Results
+```json
+{json.dumps(hyperopt_results, indent=2) if hyperopt_results else 'No results parsed'}
+```
+"""
+            
+            with open(log_filename, 'w', encoding='utf-8') as f:
+                f.write(log_content)
+            
+            logger.info(f"Successfully saved hyperopt log to {log_filename}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error saving hyperopt log: {e}")
+            return False
+
+    def save_backtest_log(self, backtest_output: str, backtest_command: str, backtest_results: Dict = None) -> bool:
+        """Save backtest-only log to markdown file"""
+        try:
+            strategy = self.config['strategy']
+            random_state = self.config.get('random_state', 'unknown')
+            log_filename = f"{strategy}-{random_state}-backtest.md"
+            
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            log_content = f"""# Freqtrade Backtest Log
+
+**Strategy:** {strategy}  
+**Random State:** {random_state}  
+**Timestamp:** {timestamp}
+
+## Configuration
+```json
+{json.dumps(self.config, indent=2)}
+```
+
+## Backtesting Command
+```bash
+{backtest_command}
+```
+
+## Backtesting Output
+```
+{backtest_output}
+```
+
+## Backtest Results
+```json
+{json.dumps(backtest_results, indent=2) if backtest_results else 'No results parsed'}
+```
+"""
+            
+            with open(log_filename, 'w', encoding='utf-8') as f:
+                f.write(log_content)
+            
+            logger.info(f"Successfully saved backtest log to {log_filename}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error saving backtest log: {e}")
+            return False
+
     def save_formatted_log(self, hyperopt_output: str, backtest_output: str, hyperopt_command: str, backtest_command: str, hyperopt_results: Dict = None, backtest_results: Dict = None) -> bool:
         """Save formatted command outputs to markdown log file"""
         try:
@@ -662,7 +755,99 @@ class FreqtradeAutomation:
             logger.error(f"Error saving formatted log: {e}")
             return False
     
-    def run_full_automation(self) -> bool:
+    def run_hyperopt_only(self) -> bool:
+        """Run only hyperopt optimization"""
+        print("\n" + "🚀" * 50)
+        print("🤖 FREQTRADE HYPEROPT ONLY")
+        print("🚀" * 50)
+        
+        logger.info(f"Starting hyperopt-only for strategy: {self.config['strategy']}")
+        logger.info(f"Random state: {self.config['random_state']}")
+        
+        print(f"🎯 Strategy: {self.config['strategy']}")
+        print(f"🎲 Random State: {self.config['random_state']}")
+        print(f"⏰ Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Run hyperopt
+        print("\n📍 Running Hyperoptimization...")
+        hyperopt_results = self.run_hyperopt()
+        if not hyperopt_results:
+            print("💥 HYPEROPT FAILED")
+            logger.error("Hyperopt failed")
+            return False
+        
+        # Save hyperopt results
+        print("\n📍 Saving Hyperopt Results...")
+        if self.save_to_csv(hyperopt_results, self.hyperopt_csv):
+            print(f"✅ Hyperopt results saved to {self.hyperopt_csv}")
+        else:
+            print("⚠️  Warning: Failed to save hyperopt results to CSV")
+            logger.warning("Failed to save hyperopt results to CSV")
+        
+        # Save hyperopt log
+        strategy = self.config['strategy']
+        random_state = self.config['random_state']
+        log_filename = f"{strategy}-{random_state}-hyperopt.md"
+        
+        if self.save_hyperopt_log(self.hyperopt_output, self.hyperopt_command, hyperopt_results):
+            print(f"✅ Hyperopt report saved to {log_filename}")
+        else:
+            print("⚠️  Warning: Failed to save hyperopt log file")
+            logger.warning("Failed to save hyperopt log file")
+        
+        print("\n" + "🎉" * 50)
+        print("✅ HYPEROPT COMPLETED SUCCESSFULLY!")
+        print("🎉" * 50)
+        print(f"⏰ Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        logger.info("Hyperopt-only completed successfully!")
+        return True
+
+    def run_backtest_only(self) -> bool:
+        """Run only backtesting (assuming hyperopt was done previously)"""
+        print("\n" + "🚀" * 50)
+        print("🤖 FREQTRADE BACKTEST ONLY")
+        print("🚀" * 50)
+        
+        logger.info(f"Starting backtest-only for strategy: {self.config['strategy']}")
+        
+        print(f"🎯 Strategy: {self.config['strategy']}")
+        print(f"⏰ Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Run backtesting
+        print("\n📍 Running Backtesting...")
+        backtest_results = self.run_backtesting()
+        if not backtest_results:
+            print("💥 BACKTESTING FAILED")
+            logger.error("Backtesting failed")
+            return False
+        
+        # Save backtesting results
+        print("\n📍 Saving Backtest Results...")
+        if self.save_to_csv(backtest_results, self.backtest_csv):
+            print(f"✅ Backtest results saved to {self.backtest_csv}")
+        else:
+            print("⚠️  Warning: Failed to save backtest results to CSV")
+            logger.warning("Failed to save backtesting results to CSV")
+        
+        # Save backtest log
+        strategy = self.config['strategy']
+        random_state = self.config.get('random_state', 'unknown')
+        log_filename = f"{strategy}-{random_state}-backtest.md"
+        
+        if self.save_backtest_log(self.backtest_output, self.backtest_command, backtest_results):
+            print(f"✅ Backtest report saved to {log_filename}")
+        else:
+            print("⚠️  Warning: Failed to save backtest log file")
+            logger.warning("Failed to save backtest log file")
+        
+        print("\n" + "🎉" * 50)
+        print("✅ BACKTEST COMPLETED SUCCESSFULLY!")
+        print("🎉" * 50)
+        print(f"⏰ Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        logger.info("Backtest-only completed successfully!")
+        return True
         """Run the complete hyperopt -> backtesting workflow"""
         print("\n" + "🚀" * 50)
         print("🤖 FREQTRADE AUTOMATION STARTED")
@@ -745,23 +930,40 @@ class FreqtradeAutomation:
 
 def main():
     """Main entry point"""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Freqtrade Automation Script')
+    parser.add_argument('--mode', choices=['full', 'hyperopt', 'backtest'], default='full',
+                       help='Run mode: full (hyperopt+backtest), hyperopt only, or backtest only')
+    parser.add_argument('--strategy', type=str, default='IchimokuRebondStrategy',
+                       help='Trading strategy to use')
+    parser.add_argument('--timeframe', type=str, default='1h',
+                       help='Timeframe for analysis')
+    parser.add_argument('--epochs', type=int, default=100,
+                       help='Number of hyperopt epochs')
+    parser.add_argument('--random-state', type=int, default=None,
+                       help='Random state for reproducibility (auto-generated if not specified)')
+    
+    args = parser.parse_args()
+    
     # Print startup banner
     print("=" * 80)
     print("🤖 FREQTRADE AUTOMATION SCRIPT")
-    print("🔥 Hyperopt + Backtesting Workflow")
+    if args.mode == 'full':
+        print("🔥 Hyperopt + Backtesting Workflow")
+    elif args.mode == 'hyperopt':
+        print("🔍 Hyperopt Only")
+    elif args.mode == 'backtest':
+        print("📊 Backtest Only")
     print("=" * 80)
     
     # Configuration - modify these parameters as needed
     config = {
-        # 'strategy': 'IchimokuKinjunStrategy',
-        # 'strategy': 'EMAMACDStrategy',
-        # 'strategy': 'EMACrossOverStrategy',
-        'strategy': 'IchimokuRebondStrategy',
-        'timeframe': '1h',
+        'strategy': args.strategy,
+        'timeframe': args.timeframe,
         'hyperopt_loss': 'SharpeHyperOptLoss',
         'spaces': 'buy sell',
-        'random_state': Random().randint(1, 10000),  # Random state for reproducibility
-        'epochs': 100,
+        'random_state': args.random_state if args.random_state else Random().randint(1, 10000),
+        'epochs': args.epochs,
         'hyperopt_timerange': '20170801-20191231',
         'backtest_timerange': '20220101-20251231'
     }
@@ -769,22 +971,36 @@ def main():
     print("⚙️  CONFIGURATION:")
     for key, value in config.items():
         print(f"   {key}: {value}")
+    print(f"   mode: {args.mode}")
     print("=" * 80)
     
-    # Initialize and run automation
+    # Initialize automation
     automation = FreqtradeAutomation(config)
-    success = automation.run_full_automation()
+    
+    # Run based on mode
+    if args.mode == 'full':
+        success = automation.run_full_automation()
+        result_files = [automation.hyperopt_csv, automation.backtest_csv]
+        workflow = "FULL AUTOMATION"
+    elif args.mode == 'hyperopt':
+        success = automation.run_hyperopt_only()
+        result_files = [automation.hyperopt_csv]
+        workflow = "HYPEROPT"
+    elif args.mode == 'backtest':
+        success = automation.run_backtest_only()
+        result_files = [automation.backtest_csv]
+        workflow = "BACKTEST"
     
     if success:
         print("\n" + "🎉" * 20)
-        print("✅ AUTOMATION COMPLETED SUCCESSFULLY!")
+        print(f"✅ {workflow} COMPLETED SUCCESSFULLY!")
         print("📊 Results saved to:")
-        print(f"   - Hyperopt: {automation.hyperopt_csv}")
-        print(f"   - Backtest: {automation.backtest_csv}")
+        for file in result_files:
+            print(f"   - {file}")
         print("🎉" * 20)
     else:
         print("\n" + "💥" * 20)
-        print("❌ AUTOMATION FAILED")
+        print(f"❌ {workflow} FAILED")
         print("📋 Check logs for details:")
         print("   - freqtrade_automation.log")
         print("💥" * 20)
