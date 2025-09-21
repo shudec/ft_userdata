@@ -960,12 +960,16 @@ def main():
     config = {
         'strategy': args.strategy,
         'timeframe': args.timeframe,
-        'hyperopt_loss': 'SharpeHyperOptLoss',
-        'spaces': 'buy sell',
+        'hyperopt_loss': 'OnlyProfitHyperOptLoss',
+        # 'hyperopt_loss': 'SharpeHyperOptLoss',
+        # 'hyperopt_loss': 'SortinoHyperOptLoss',
+        # 'hyperopt_loss': 'CalmarHyperOptLoss',
+        # 'spaces': 'sell buy',
+        'spaces': 'roi',
         'random_state': args.random_state if args.random_state else Random().randint(1, 10000),
         'epochs': args.epochs,
-        'hyperopt_timerange': '20170801-20191231',
-        'backtest_timerange': '20220101-20251231'
+        'hyperopt_timerange': '20170801-20201231',
+        'backtest_timerange': '20210101-20241231'
     }
     
     print("⚙️  CONFIGURATION:")

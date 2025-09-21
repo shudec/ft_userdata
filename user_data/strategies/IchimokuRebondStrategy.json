@@ -1,7 +1,6 @@
 {
   "strategy_name": "IchimokuRebondStrategy",
   "params": {
-    "roi": {},
     "stoploss": {
       "stoploss": -0.1
     },
@@ -15,25 +14,31 @@
       "max_open_trades": 3
     },
     "buy": {
-      "confirmation_candle": true,
-      "engulfing_size_threshold": 1.5,
-      "flat_kinjun_threshold": 1,
-      "hammer_body_threshold": 0.5,
-      "hammer_head_threshold": 0.5,
-      "hammer_strength_threshold": 0.025,
-      "kinjun_proximity_threshold": 0.001,
+      "confirmation_candle": false,
+      "engulfing_size_threshold": 1.1,
+      "flat_kinjun_threshold": 18,
+      "hammer_body_threshold": 0.913,
+      "hammer_head_threshold": 0.781,
+      "hammer_strength_threshold": 0.044,
+      "kinjun_proximity_threshold": 0.0,
       "tenkan_proximity_threshold": 0.001
     },
     "sell": {
-      "use_custom_stoploss_param": true,
-      "kinjun_threshold": 1.0,
+      "kinjun_threshold": 0.995,
       "lookback_period_for_stoploss": 2,
-      "stoploss_margin": 0.999,
+      "stoploss_margin": 0.99,
       "take_profit_multiplier": 3,
-      "use_sell_signal_param": true
+      "use_custom_stoploss_param": true,
+      "use_sell_signal_param": false
     },
-    "protection": {}
+    "protection": {},
+    "roi": {
+      "0": 0.524,
+      "438": 0.144,
+      "1133": 0.057,
+      "2477": 0
+    }
   },
   "ft_stratparam_v": 1,
-  "export_time": "2025-09-19 13:05:32.118789+00:00"
+  "export_time": "2025-09-21 20:26:09.263082+00:00"
 }

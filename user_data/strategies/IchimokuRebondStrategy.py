@@ -65,11 +65,11 @@ class IchimokuRebondStrategy(IStrategy):
     hammer_body_threshold = DecimalParameter(0.1, 1, default=0.2, space="buy", optimize=True)
     hammer_head_threshold = DecimalParameter(0.01, 0.99, default=0.1, space="buy", optimize=True)
     hammer_strength_threshold = DecimalParameter(0.001, 0.05, default=0.01, space="buy", optimize=True)
-    engulfing_size_threshold = CategoricalParameter([1.5, 2, 2.5, 3], default=2, space="buy", optimize=True)
+    engulfing_size_threshold = CategoricalParameter([1.1, 1.2, 1.5, 2, 2.5, 3], default=2, space="buy", optimize=True)
     confirmation_candle = BooleanParameter(default=True, space="buy", optimize=True)
     flat_kinjun_threshold = IntParameter(0, 20, default=4, space="buy", optimize=True)
-    kinjun_proximity_threshold = DecimalParameter(0, 0.001, default=0.001, space="buy", optimize=True)
-    tenkan_proximity_threshold = DecimalParameter(0, 0.001, default=0.001, space="buy", optimize=True)
+    kinjun_proximity_threshold = DecimalParameter(0, 0.002, default=0.001, space="buy", optimize=True)
+    tenkan_proximity_threshold = DecimalParameter(0, 0.002, default=0.001, space="buy", optimize=True)
 
     use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
     lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=True)
@@ -291,6 +291,8 @@ class IchimokuRebondStrategy(IStrategy):
             rebond_volume = dataframe['volume'].shift(1)
             kinjun_proximity = dataframe['kinjun_proximity'].shift(1)
             tenkan_proximity = dataframe['tenkan_proximity'].shift(1)
+            rebond_kinjun_spanA_futur = dataframe['ichimoku-spanA-futur'].shift(1)
+            rebond_kinjun_spanB_futur = dataframe['ichimoku-spanB-futur'].shift(1)
         else:
             # Variables pour la bougie actuelle (setup)
             rebond_tenkan = dataframe['ichimoku-tenkan']
@@ -304,6 +306,8 @@ class IchimokuRebondStrategy(IStrategy):
             rebond_volume = dataframe['volume']
             kinjun_proximity = dataframe['kinjun_proximity']
             tenkan_proximity = dataframe['tenkan_proximity']
+            rebond_kinjun_spanA_futur = dataframe['ichimoku-spanA-futur']
+            rebond_kinjun_spanB_futur = dataframe['ichimoku-spanB-futur']
 
         dataframe.loc[
             (
@@ -319,8 +323,8 @@ class IchimokuRebondStrategy(IStrategy):
                 ) &
                 # la tenkan doit être ascendante et la kinjun plate ou ascendante
                 (
-                    (dataframe['ichimoku-tenkan'].shift(1) < dataframe['ichimoku-tenkan']) &
-                    (dataframe['ichimoku-kinjun'].shift(1) >= dataframe['ichimoku-kinjun'])
+                    (rebond_tenkan.shift(1) < rebond_tenkan) &
+                    (rebond_kinjun.shift(1) >= rebond_kinjun)
                 ) &
                 (
                     # hammer
@@ -332,21 +336,45 @@ class IchimokuRebondStrategy(IStrategy):
                         # hammer
                         (self.is_hammer_candle(rebond_open, rebond_high, rebond_low, rebond_close)) &
                         # confirmation bougie actuelle verte (sans biais)
-                        (dataframe['close'] > dataframe['open'] if self.confirmation_candle.value else True)
-                    ) | (
-                    # bullish engulfing
-                        ((rebond_high - rebond_close) / (rebond_high - rebond_open) < 0.25) &  # petite mèche haute
-                        self.is_bullish_engulfing(rebond_open.shift(1), rebond_close.shift(1), rebond_open, rebond_close)
+                        (rebond_close > rebond_open if self.confirmation_candle.value else True)
                     )
                 ) &
 
-                (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
+                (rebond_kinjun_spanA_futur > rebond_kinjun_spanB_futur) &
                 (rebond_close > rebond_spanA) &
                 (rebond_close > rebond_spanB) &
                 (rebond_volume > 0)
             ),
-            "enter_long",
-        ] = 1
+            ['enter_long', 'enter_tag']] = (1, 'hammer_rebond')
+        
+        dataframe.loc[
+        (
+            # Conditions sur la bougie précédente (setup du rebond)
+            (dataframe['ichimoku-tenkan'] >= dataframe['ichimoku-kinjun']) &
+            # (rebond_open > rebond_kinjun) &
+            (
+                ((dataframe['kinjun_proximity'] > 0) & (dataframe['kinjun_proximity'] < self.kinjun_proximity_threshold.value)) |
+                ((dataframe['tenkan_proximity'] > 0) & (dataframe['tenkan_proximity'] < self.tenkan_proximity_threshold.value))
+            ) &
+            # la tenkan doit être ascendante et la kinjun plate ou ascendante
+            (
+                (dataframe['ichimoku-tenkan'].shift(1) < dataframe['ichimoku-tenkan']) &
+                (dataframe['ichimoku-kinjun'].shift(1) >= dataframe['ichimoku-kinjun'])
+            ) &
+            (
+                (
+                # bullish engulfing
+                    ((dataframe['high'] - dataframe['close']) / (dataframe['high'] - dataframe['open']) < 0.25) &  # petite mèche haute
+                    self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'])
+                )
+            ) &
+
+            (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
+            (dataframe['close'] > dataframe['ichimoku-spanA']) &
+            (dataframe['close'] > dataframe['ichimoku-spanB']) &
+            (dataframe['volume'] > 0)
+        ),
+        ['enter_long', 'enter_tag']] = (1, 'engulfing_rebond')
 
         return dataframe
 
