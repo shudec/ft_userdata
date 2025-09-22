@@ -74,13 +74,16 @@ class IchimokuRebondStrategy(IStrategy):
     confirmation_chiku = BooleanParameter(default=True, space="buy", optimize=True)
     bullish_engulfing_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=True)
 
-    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=True)
-    lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=True)
-    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=True)
-    stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=True)
-    kinjun_threshold = DecimalParameter(0.995, 1, default=1, space="sell", optimize=True)
+    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
+    lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=False)
+    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=False)
+    stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=False)
+    kinjun_threshold = DecimalParameter(0.995, 1, default=1, space="sell", optimize=False)
     # fix_stoploss_value_param = CategoricalParameter([-0.20, -0.15, -0.10, -0.05, -0.02, -0.01], default=-0.10, space="sell")
     use_sell_signal_param = BooleanParameter(default=True, space="sell", optimize=True)
+    previous_low_stoploss = BooleanParameter(default=True, space="sell", optimize=True)
+    atr_stoploss = BooleanParameter(default=False, space="sell", optimize=True)
+    atr_stoploss_multiplier = CategoricalParameter([0.5, 1, 1.5, 2, 2.5, 3], default=1.5, space="sell", optimize=True)
 
     use_custom_stoploss = use_custom_stoploss_param.value
 
@@ -202,6 +205,7 @@ class IchimokuRebondStrategy(IStrategy):
 
         dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
         dataframe['rsi'] = ta.RSI(dataframe, timeperiod=14)
+        dataframe['atr'] = ta.ATR(dataframe, timeperiod=14)
 
         dataframe['engulfing'] = self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'])
         dataframe['ichimoku-futur'] = (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur'])
@@ -491,27 +495,38 @@ class IchimokuRebondStrategy(IStrategy):
             if trade.get_custom_data("stop_price_ratio") is not None:
                 return None
 
-            # 2. Calcul du plus bas sur les 8 dernières bougies avant l'entrée
-            lowest_price = self.calculate_lowest_price_last_n_candles(
-                pair, self.lookback_period_for_stoploss.value
-            )
+            if self.previous_low_stoploss.value:
+                # 2. Calcul du plus bas sur les 8 dernières bougies avant l'entrée
+                lowest_price = self.calculate_lowest_price_last_n_candles(
+                    pair, self.lookback_period_for_stoploss.value
+                )
 
-            # 3. Convertir en ratio relatif au prix courant
-            ratio = stoploss_from_absolute(
-                lowest_price,
-                current_rate,
-                is_short=trade.is_short,
-                leverage=trade.leverage,
-            )
-
-            # 4. Stocker pour ne pas changer ensuite
-            # setattr(trade, 'stop_price_ratio', ratio)
-            trade.set_custom_data(key="stop_price_ratio", value=ratio)
-            # print(f"Custom stoploss for {pair} at {current_time} is {trade.get_custom_data('stop_price_ratio')}")
-
+                # 3. Convertir en ratio relatif au prix courant
+                ratio = stoploss_from_absolute(
+                    lowest_price,
+                    current_rate,
+                    is_short=trade.is_short,
+                    leverage=trade.leverage,
+                )
+                trade.set_custom_data(key="stop_price_ratio", value=ratio)
+            elif self.atr_stoploss.value:
+                dataframe, _ = self.dp.get_analyzed_dataframe(
+                    pair=pair, timeframe=self.timeframe
+                )
+                atr = dataframe['atr'].iloc[-1]
+                lowest_price = current_rate - self.atr_stoploss_multiplier.value * atr
+                ratio = stoploss_from_absolute(
+                    lowest_price,
+                    current_rate,
+                    is_short=trade.is_short,
+                    leverage=trade.leverage,
+                )
+                trade.set_custom_data(key="stop_price_ratio", value=ratio)
+            else:
+                ratio = -self.stoploss
+                trade.set_custom_data(key="stop_price_ratio", value=ratio)
         else:
-            ratio = None
-        # print(f"Custom stoploss for {pair} at {current_time} is {ratio}")
+            return None
         return ratio
 
     def custom_stake_amount(

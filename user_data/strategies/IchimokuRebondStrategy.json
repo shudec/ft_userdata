@@ -1,6 +1,7 @@
 {
   "strategy_name": "IchimokuRebondStrategy",
   "params": {
+    "roi": {},
     "stoploss": {
       "stoploss": -0.1
     },
@@ -30,13 +31,14 @@
       "lookback_period_for_stoploss": 9,
       "stoploss_margin": 0.998,
       "take_profit_multiplier": 1,
-      "use_custom_stoploss_param": false,
+      "use_custom_stoploss_param": true,
+      "atr_stoploss": false,
+      "atr_stoploss_multiplier": 1.5,
+      "previous_low_stoploss": false,
       "use_sell_signal_param": true
     },
-    "protection": {},
-    "roi": {
-    }
+    "protection": {}
   },
   "ft_stratparam_v": 1,
-  "export_time": "2025-09-22 15:54:26.402022+00:00"
+  "export_time": "2025-09-22 19:49:18.126314+00:00"
 }
