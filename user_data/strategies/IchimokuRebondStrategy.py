@@ -523,10 +523,10 @@ class IchimokuRebondStrategy(IStrategy):
                 )
                 trade.set_custom_data(key="stop_price_ratio", value=ratio)
             else:
-                ratio = -self.stoploss
+                ratio = 0
                 trade.set_custom_data(key="stop_price_ratio", value=ratio)
         else:
-            return None
+            return 0
         return ratio
 
     def custom_stake_amount(
