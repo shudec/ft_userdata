@@ -66,12 +66,15 @@ class IchimokuRebondStrategy(IStrategy):
     hammer_head_threshold = DecimalParameter(0.01, 0.99, default=0.1, space="buy", optimize=True)
     hammer_strength_threshold = DecimalParameter(0.001, 0.05, default=0.01, space="buy", optimize=True)
     engulfing_size_threshold = CategoricalParameter([1.1, 1.2, 1.5, 2, 2.5, 3], default=2, space="buy", optimize=True)
+    engulfing_size_threshold = CategoricalParameter([1.1, 1.2, 1.5, 2, 2.5, 3], default=2, space="buy", optimize=True)
     confirmation_candle = BooleanParameter(default=True, space="buy", optimize=True)
     flat_kinjun_threshold = IntParameter(0, 20, default=4, space="buy", optimize=True)
     kinjun_proximity_threshold = DecimalParameter(0, 0.002, default=0.001, space="buy", optimize=True)
     tenkan_proximity_threshold = DecimalParameter(0, 0.002, default=0.001, space="buy", optimize=True)
+    confirmation_chiku = BooleanParameter(default=True, space="buy", optimize=True)
+    bullish_engulfing_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=True)
 
-    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
+    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=True)
     lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=True)
     take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=True)
     stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=True)
@@ -80,7 +83,7 @@ class IchimokuRebondStrategy(IStrategy):
     use_sell_signal_param = BooleanParameter(default=True, space="sell", optimize=True)
 
     use_custom_stoploss = use_custom_stoploss_param.value
-    
+
     # Strategy configuration - plain boolean values expected by Freqtrade
     use_exit_signal = use_sell_signal_param.value
 
@@ -93,35 +96,52 @@ class IchimokuRebondStrategy(IStrategy):
         "main_plot": {
             'ichimoku-tenkan': {'color': 'red'},
             'ichimoku-kinjun': {'color': 'blue'},
-            'kinjun_threshold': {'color': 'orange', 'linestyle': 'dotted'},
+            # 'kinjun_threshold': {'color': 'orange', 'linestyle': 'dotted'},
             # By omitting color, a random color is selected.
-            'sma200': {'color': 'lightblue'},
+            # 'sma200': {'color': 'lightblue'},
             # fill area between senkou_a and senkou_b
             'ichimoku-spanA': {
                 'color': 'lightgreen', #optional
                 'fill_to': 'ichimoku-spanB',
                 'fill_label': 'Ichimoku Cloud', #optional
-                'fill_color': 'rgba(255,76,46,0.2)', #optional
+                'fill_color': 'green', #optional
             },
             # plot senkou_b, too. Not only the area to it.
             'ichimoku-spanB': {'color': 'darkgreen'},
+            "ichimoku-chiku": {'color': 'purple'},
             "stoploss_prices": {
                 "color": "grey",
                 "linestyle": "dotted",
             },
         },
         "subplots": {
-            "rsi": {
-                "rsi": {"color": "purple"},
+            "engulfing": {
+                "engulfing": {"color": "white", "type": "bar"},
             },
+            "Proximities": {
+                # "kinjun_proximity": {"color": "blue", "type": "bar"},
+                # "tenkan_proximity": {"color": "orange", "type": "bar"},
+                "proximity": {"color": "green", "type": "bar"},
+            },
+            "Ichimoku Future": {
+                "ichimoku-futur": {"color": "green", "type": "bar"},
+            },
+            "Tenkan/Kinjun Increasing": {
+                "tenkan_kinjun_increasing": {"color": "green", "type": "bar"},
+            },
+            # "Last Candle Under Cloud": {
+            #     "last_candle_under_cloud": {"color": "red", "type": "bar"},
+            # },
+            "Ichimoku Chikou Free": {
+                "ichimoku-chiku-free": {"color": "purple", "type": "bar"},
+            },
+            # "rsi": {
+            #     "rsi": {"color": "purple"},
+            # },
             "Volume": {
                 "volume": {"color": "blue", "type": "bar"},
                 "volume_sma": {"color": "orange"},
             },
-            "Proximities": {
-                "kinjun_proximity": {"color": "blue", "type": "bar"},
-                "tenkan_proximity": {"color": "orange", "type": "bar"},
-            }
         },
     }
 
@@ -139,13 +159,13 @@ class IchimokuRebondStrategy(IStrategy):
         # Volume moyen pour confirmation
         dataframe["volume_sma"] = dataframe["volume"].rolling(window=20).mean()
 
-        #Ichimoku
+        # Ichimoku
         dataframe['ichimoku-tenkan'] = ((dataframe['high'].rolling(window=9).max()) + (dataframe['low'].rolling(window=9).min())) / 2
         dataframe['ichimoku-kinjun'] = ((dataframe['high'].rolling(window=26).max()) + (dataframe['low'].rolling(window=26).min())) / 2
         dataframe['ichimoku-spanA'] = ((dataframe['ichimoku-tenkan']) + (dataframe['ichimoku-kinjun'])).shift(26) / 2
         dataframe['ichimoku-spanB'] = ((dataframe['high'].rolling(window=52).max()) + (dataframe['low'].rolling(window=52).min())).shift(26) / 2
-        dataframe['ichimoku-chiku'] = (dataframe['close'].shift(-26))
-      
+        dataframe['ichimoku-chiku'] = (dataframe['close'])
+
         dataframe['ichimoku-spanA-futur'] = ((dataframe['ichimoku-tenkan']) + (dataframe['ichimoku-kinjun'])) / 2
         dataframe['ichimoku-spanB-futur'] = ((dataframe['high'].rolling(window=52).max()) + (dataframe['low'].rolling(window=52).min())) / 2
         dataframe['ichimoku-futur'] = (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur'])
@@ -175,15 +195,59 @@ class IchimokuRebondStrategy(IStrategy):
             dataframe["stoploss_prices"] = dataframe["close"] * (1 + self.stoploss)
 
         dataframe['kinjun_threshold'] = dataframe["ichimoku-kinjun"] * self.kinjun_threshold.value
-        dataframe['kinjun_proximity'] = (dataframe[["close","open"]].min(axis=1) - dataframe["ichimoku-kinjun"]) / dataframe["ichimoku-kinjun"]
-        dataframe['tenkan_proximity'] = (dataframe[["close","open"]].min(axis=1) - dataframe["ichimoku-tenkan"]) / dataframe["ichimoku-tenkan"]
+        dataframe['kinjun_proximity'] = ((dataframe[["close","open"]].min(axis=1) - dataframe["ichimoku-kinjun"]) / dataframe["ichimoku-kinjun"]).abs()
+        dataframe['tenkan_proximity'] = ((dataframe[["close","open"]].min(axis=1) - dataframe["ichimoku-tenkan"]) / dataframe["ichimoku-tenkan"]).abs()
 
+        dataframe['proximity'] = ((dataframe['kinjun_proximity'] < self.kinjun_proximity_threshold.value)) | ((dataframe['tenkan_proximity'] < self.tenkan_proximity_threshold.value))
 
         dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
         dataframe['rsi'] = ta.RSI(dataframe, timeperiod=14)
 
+        dataframe['engulfing'] = self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'])
+        dataframe['ichimoku-futur'] = (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur'])
+        dataframe["tenkan_kinjun_increasing"] = (
+            (dataframe["ichimoku-tenkan"] >= dataframe["ichimoku-kinjun"])
+            & (dataframe["ichimoku-tenkan"].shift(1) < dataframe["ichimoku-tenkan"])
+            & (dataframe["ichimoku-kinjun"].shift(1) <= dataframe["ichimoku-kinjun"])
+        )
+
+        # Calculate last_candle_under_cloud iteratively
+        dataframe['last_candle_under_cloud'] = 0
+        
+        for i in range(len(dataframe)):
+            # Check if current candle is under cloud
+            current_under_cloud = (
+                (dataframe['close'].iloc[i] < dataframe['ichimoku-spanA'].iloc[i]) or 
+                (dataframe['close'].iloc[i] < dataframe['ichimoku-spanB'].iloc[i])
+            )
+            
+            if current_under_cloud:
+                # Under cloud = 0
+                dataframe.loc[dataframe.index[i], 'last_candle_under_cloud'] = 0
+            else:
+                # Above cloud
+                if i == 0:
+                    # First candle, set to 1
+                    dataframe.loc[dataframe.index[i], 'last_candle_under_cloud'] = 1
+                else:
+                    # Check if previous candle was under cloud
+                    previous_under_cloud = (
+                        (dataframe['close'].iloc[i-1] < dataframe['ichimoku-spanA'].iloc[i-1]) and 
+                        (dataframe['close'].iloc[i-1] < dataframe['ichimoku-spanB'].iloc[i-1])
+                    )
+                    
+                    if previous_under_cloud:
+                        # Cross up = 1
+                        dataframe.loc[dataframe.index[i], 'last_candle_under_cloud'] = 1
+                    else:
+                        # Continue above cloud = previous + 1
+                        prev_value = dataframe['last_candle_under_cloud'].iloc[i-1]
+                        dataframe.loc[dataframe.index[i], 'last_candle_under_cloud'] = prev_value + 1
+
+        dataframe['ichimoku-chiku-free'] = ((dataframe['ichimoku-chiku'] > dataframe['close'].shift(26)) & (dataframe['ichimoku-chiku'] > dataframe['ichimoku-spanA'].shift(26)) & (dataframe['ichimoku-chiku'] > dataframe['ichimoku-spanB'].shift(26)))
+
         return dataframe
-    
+
     def is_hammer_candle(self, open_price, high_price, low_price, close_price) -> bool:
         """
         Détermine si une bougie est un marteau (hammer pattern)
@@ -201,18 +265,18 @@ class IchimokuRebondStrategy(IStrategy):
         lower_wick = close_price.combine(open_price, min) - low_price
         upper_wick = high_price - close_price.combine(open_price, max)
         total_range = high_price - low_price
-        
+
         # Taille du corps par rapport à la mèche basse
         body_vs_lower_wick = body_size < lower_wick * self.hammer_body_threshold.value
-        
+
         # Mèche de la tête par rapport au corps
         upper_wick_vs_body = upper_wick < body_size * self.hammer_head_threshold.value
-        
+
         # Bougie importante (range significatif)
         significant_candle = (total_range / low_price) > self.hammer_strength_threshold.value
-        
+
         return body_vs_lower_wick & upper_wick_vs_body & significant_candle
-    
+
     def is_bullish_engulfing(self, prev_open, prev_close, curr_open, curr_close) -> bool:
         """
         Détermine si deux bougies consécutives forment un pattern d'engulfing haussier
@@ -228,18 +292,18 @@ class IchimokuRebondStrategy(IStrategy):
         """
         # La bougie précédente doit être baissière (rouge)
         prev_is_bearish = prev_close < prev_open
-        
+
         # La bougie actuelle doit être haussière (verte)
         curr_is_bullish = curr_close > curr_open
-        
+
         # La bougie actuelle doit englober complètement le corps de la précédente
         curr_engulfs_prev = (curr_open <= prev_close) & (curr_close > prev_open)
 
         # la taille de la bougie doit être x fois supérieure à la précédente
         curr_is_big = (curr_close - curr_open) > (prev_open - prev_close) * self.engulfing_size_threshold.value
-        
+
         return prev_is_bearish & curr_is_bullish & curr_engulfs_prev & curr_is_big
-    
+
     def is_bearish_engulfing(self, prev_open, prev_close, curr_open, curr_close) -> bool:
         """
         Détermine si deux bougies consécutives forment un pattern d'engulfing baissier
@@ -255,10 +319,10 @@ class IchimokuRebondStrategy(IStrategy):
         """
         # La bougie précédente doit être haussière (verte)
         prev_is_bullish = prev_close > prev_open
-        
+
         # La bougie actuelle doit être baissière (rouge)
         curr_is_bearish = curr_close < curr_open
-        
+
         # La bougie actuelle doit englober complètement le corps de la précédente
         curr_engulfs_prev = (curr_open >= prev_close) & (curr_close < prev_open)
 
@@ -270,7 +334,7 @@ class IchimokuRebondStrategy(IStrategy):
     @informative('1d')
     # @informative('1d', 'BTC/{stake}', fmt='{base}_{column}_{timeframe}')
     def populate_indicators_1d(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        #Ichimoku
+        # Ichimoku
         dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
         return dataframe
 
@@ -324,7 +388,7 @@ class IchimokuRebondStrategy(IStrategy):
                 # la tenkan doit être ascendante et la kinjun plate ou ascendante
                 (
                     (rebond_tenkan.shift(1) < rebond_tenkan) &
-                    (rebond_kinjun.shift(1) >= rebond_kinjun)
+                    (rebond_kinjun.shift(1) <= rebond_kinjun)
                 ) &
                 (
                     # hammer
@@ -343,10 +407,11 @@ class IchimokuRebondStrategy(IStrategy):
                 (rebond_kinjun_spanA_futur > rebond_kinjun_spanB_futur) &
                 (rebond_close > rebond_spanA) &
                 (rebond_close > rebond_spanB) &
+                (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
                 (rebond_volume > 0)
             ),
             ['enter_long', 'enter_tag']] = (1, 'hammer_rebond')
-        
+
         dataframe.loc[
         (
             # Conditions sur la bougie précédente (setup du rebond)
@@ -359,19 +424,18 @@ class IchimokuRebondStrategy(IStrategy):
             # la tenkan doit être ascendante et la kinjun plate ou ascendante
             (
                 (dataframe['ichimoku-tenkan'].shift(1) < dataframe['ichimoku-tenkan']) &
-                (dataframe['ichimoku-kinjun'].shift(1) >= dataframe['ichimoku-kinjun'])
+                (dataframe['ichimoku-kinjun'].shift(1) <= dataframe['ichimoku-kinjun'])
             ) &
             (
-                (
                 # bullish engulfing
-                    ((dataframe['high'] - dataframe['close']) / (dataframe['high'] - dataframe['open']) < 0.25) &  # petite mèche haute
-                    self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'])
-                )
+                ((dataframe['high'] - dataframe['close']) / (dataframe['high'] - dataframe['open']) < self.bullish_engulfing_upper_wick_threshold.value) &  # petite mèche haute
+                (self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close']))
             ) &
 
             (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
             (dataframe['close'] > dataframe['ichimoku-spanA']) &
             (dataframe['close'] > dataframe['ichimoku-spanB']) &
+            (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
             (dataframe['volume'] > 0)
         ),
         ['enter_long', 'enter_tag']] = (1, 'engulfing_rebond')

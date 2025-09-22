@@ -475,8 +475,8 @@ class FreqtradeAutomation:
             if match:
                 result['max_balance_usdt'] = float(match.group(1))
             
-            # Extract Absolute Drawdown (Account)
-            drawdown_pattern = r'Absolute Drawdown \(Account\)\s+│\s+([\d.-]+)%'
+            # Extract Absolute Drawdown
+            drawdown_pattern = r'Absolute drawdown\s+│\s+[\d.-]+\s+[A-Z]+\s+\(([\d.-]+)%\)'
             match = re.search(drawdown_pattern, output)
             if match:
                 result['absolute_drawdown_pct'] = float(match.group(1))
@@ -565,7 +565,7 @@ class FreqtradeAutomation:
                     calmar = float(match.group(1))
             
             if not absolute_drawdown_pct:
-                drawdown_pattern = r'Absolute Drawdown \(Account\)\s+│\s+([\d.-]+)%'
+                drawdown_pattern = r'Absolute drawdown\s+│\s+[\d.-]+\s+[A-Z]+\s+\(([\d.-]+)%\)'
                 match = re.search(drawdown_pattern, self.backtest_output)
                 if match:
                     absolute_drawdown_pct = float(match.group(1))
@@ -848,6 +848,8 @@ class FreqtradeAutomation:
         
         logger.info("Backtest-only completed successfully!")
         return True
+    
+    def run_full_automation(self) -> bool:
         """Run the complete hyperopt -> backtesting workflow"""
         print("\n" + "🚀" * 50)
         print("🤖 FREQTRADE AUTOMATION STARTED")
@@ -968,8 +970,9 @@ def main():
         'spaces': 'roi',
         'random_state': args.random_state if args.random_state else Random().randint(1, 10000),
         'epochs': args.epochs,
-        'hyperopt_timerange': '20170801-20201231',
-        'backtest_timerange': '20210101-20241231'
+        'hyperopt_timerange': '20170801-20191231',
+        'backtest_timerange': '20180101-20251231'
+        # 'backtest_timerange': '20250101-20251231'
     }
     
     print("⚙️  CONFIGURATION:")

@@ -14,31 +14,29 @@
       "max_open_trades": 3
     },
     "buy": {
-      "confirmation_candle": false,
-      "engulfing_size_threshold": 1.1,
-      "flat_kinjun_threshold": 18,
-      "hammer_body_threshold": 0.913,
-      "hammer_head_threshold": 0.781,
-      "hammer_strength_threshold": 0.044,
-      "kinjun_proximity_threshold": 0.0,
-      "tenkan_proximity_threshold": 0.001
+      "bullish_engulfing_upper_wick_threshold": 0.193,
+      "confirmation_candle": true,
+      "confirmation_chiku": true,
+      "engulfing_size_threshold": 1.5,
+      "flat_kinjun_threshold": 0,
+      "hammer_body_threshold": 0.652,
+      "hammer_head_threshold": 0.956,
+      "hammer_strength_threshold": 0.001,
+      "kinjun_proximity_threshold": 0.002,
+      "tenkan_proximity_threshold": 0.002
     },
     "sell": {
-      "kinjun_threshold": 0.995,
-      "lookback_period_for_stoploss": 2,
-      "stoploss_margin": 0.99,
-      "take_profit_multiplier": 3,
-      "use_custom_stoploss_param": true,
-      "use_sell_signal_param": false
+      "kinjun_threshold": 1.0,
+      "lookback_period_for_stoploss": 9,
+      "stoploss_margin": 0.998,
+      "take_profit_multiplier": 1,
+      "use_custom_stoploss_param": false,
+      "use_sell_signal_param": true
     },
     "protection": {},
     "roi": {
-      "0": 0.524,
-      "438": 0.144,
-      "1133": 0.057,
-      "2477": 0
     }
   },
   "ft_stratparam_v": 1,
-  "export_time": "2025-09-21 20:26:09.263082+00:00"
+  "export_time": "2025-09-22 15:54:26.402022+00:00"
 }
