@@ -448,8 +448,8 @@ class IchimokuRebondStrategy(IStrategy):
                 (rebond_close > rebond_spanB) &
                 (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
                 (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
-                (dataframe['close'] > dataframe['sma200_4h']) &
-                (dataframe['rsi'] < self.rsi_entry_max.value) # & 
+                (dataframe['close'] > dataframe['sma200_4h'])
+                # (dataframe['rsi'] < self.rsi_entry_max.value) # & 
                 # (dataframe['rsi'] > self.rsi_entry_min.value) 
             ),
             ['enter_long', 'enter_tag']] = (1, 'hammer_rebond')
@@ -479,8 +479,8 @@ class IchimokuRebondStrategy(IStrategy):
             (dataframe['close'] > dataframe['ichimoku-spanB']) &
             (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
             (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
-            (dataframe['close'] > dataframe['sma200_4h']) &
-            (dataframe['rsi'] < self.rsi_entry_max.value) # & 
+            (dataframe['close'] > dataframe['sma200_4h'])
+            # (dataframe['rsi'] < self.rsi_entry_max.value) # & 
             # (dataframe['rsi'] > self.rsi_entry_min.value) 
         ),
         ['enter_long', 'enter_tag']] = (1, 'engulfing_rebond')
@@ -510,8 +510,8 @@ class IchimokuRebondStrategy(IStrategy):
             (dataframe['close'] > dataframe['ichimoku-spanB']) &
             (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
             (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
-            (dataframe['close'] > dataframe['sma200_4h']) &
-            (dataframe['rsi'] < self.rsi_entry_max.value) # & 
+            (dataframe['close'] > dataframe['sma200_4h'])
+            # (dataframe['rsi'] < self.rsi_entry_max.value) # & 
             # (dataframe['rsi'] > self.rsi_entry_min.value) 
         ),
         ['enter_long', 'enter_tag']] = (1, 'strong_bullish_rebond')
@@ -526,7 +526,8 @@ class IchimokuRebondStrategy(IStrategy):
         if self.use_sell_signal_param.value:
             dataframe.loc[
                 (
-                    qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"] * self.kinjun_threshold.value)
+                    # qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"] * self.kinjun_threshold.value)
+                    qtpylib.crossed_below(dataframe["close"], dataframe[["ichimoku-spanA","ichimoku-spanB"]].min(axis=1))
                 ),
                 "exit_long",
             ] = 1

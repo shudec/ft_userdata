@@ -31,11 +31,11 @@
     "sell": {
       "atr_stoploss_multiplier": 3,
       "kinjun_threshold": 1.0,
-      "lookback_period_for_stoploss": 1,
+      "lookback_period_for_stoploss": 8,
       "stoploss_margin": 0.993,
       "take_profit_multiplier": 1,
-      "use_custom_stoploss_param": false,
-      "use_custom_stoploss_type": "lower",
+      "use_custom_stoploss_param": true,
+      "use_custom_stoploss_type": "lower_and_atr",
       "use_sell_signal_param": true
     },
     "protection": {}

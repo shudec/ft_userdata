@@ -971,7 +971,7 @@ def main():
         'random_state': args.random_state if args.random_state else Random().randint(1, 10000),
         'epochs': args.epochs,
         'hyperopt_timerange': '20170801-20191231',
-        'backtest_timerange': '20180101-20251231'
+        'backtest_timerange': '20200101-20251231'
         # 'backtest_timerange': '20250101-20251231'
     }
     
