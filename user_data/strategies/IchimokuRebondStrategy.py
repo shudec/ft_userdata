@@ -53,9 +53,9 @@ class IchimokuRebondStrategy(IStrategy):
     trailing_stop = False
 
     # Hyperopt parameters
-    # rsi_entry_max = IntParameter(30, 70, default=50, space="buy", optimize=False)
-    # rsi_entry_min = IntParameter(10, 50, default=20, space="buy", optimize=False)
-    # volume_factor = DecimalParameter(0.5, 3, default=0.5, space="buy", optimize=False)
+    rsi_entry_max = IntParameter(30, 70, default=70, space="buy", optimize=False)
+    rsi_entry_min = IntParameter(10, 50, default=10, space="buy", optimize=False)
+    volume_factor = CategoricalParameter([0, 0.25, 0.5, 1, 1.5, 2, 2.5, 3], default=0.5, space="buy", optimize=True)
     # entry_kinjun_sup_tenkan = BooleanParameter(default=False, space="buy", optimize=False)
     # entry_sma200 = BooleanParameter(default=False, space="buy", optimize=False)
     # entry_span_futur = BooleanParameter(default=False, space="buy", optimize=False)
@@ -73,16 +73,16 @@ class IchimokuRebondStrategy(IStrategy):
     tenkan_proximity_threshold = DecimalParameter(0, 0.002, default=0.001, space="buy", optimize=True)
     confirmation_chiku = BooleanParameter(default=True, space="buy", optimize=True)
     bullish_engulfing_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=True)
+    strong_bullish_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=True)
 
-    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
-    lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=False)
-    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=False)
-    stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=False)
-    kinjun_threshold = DecimalParameter(0.995, 1, default=1, space="sell", optimize=False)
-    # fix_stoploss_value_param = CategoricalParameter([-0.20, -0.15, -0.10, -0.05, -0.02, -0.01], default=-0.10, space="sell")
+
+    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=True)
+    lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=True)
+    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=True)
+    stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=True)
+    kinjun_threshold = DecimalParameter(0.995, 1, default=1, space="sell", optimize=True)
+    use_custom_stoploss_type = CategoricalParameter(['lower', 'atr', 'lower_and_atr', 'none'], default='lower', space="sell", optimize=True)
     use_sell_signal_param = BooleanParameter(default=True, space="sell", optimize=True)
-    previous_low_stoploss = BooleanParameter(default=True, space="sell", optimize=True)
-    atr_stoploss = BooleanParameter(default=False, space="sell", optimize=True)
     atr_stoploss_multiplier = CategoricalParameter([0.5, 1, 1.5, 2, 2.5, 3], default=1.5, space="sell", optimize=True)
 
     use_custom_stoploss = use_custom_stoploss_param.value
@@ -148,11 +148,26 @@ class IchimokuRebondStrategy(IStrategy):
         },
     }
 
+
     def informative_pairs(self):
         """
         Define additional, informative pair/interval combinations to be cached from the exchange.
         """
         return []
+
+    @informative('1d')
+    # @informative('1d', 'BTC/{stake}', fmt='{base}_{column}_{timeframe}')
+    def populate_indicators_1d(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Ichimoku
+        dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
+        return dataframe
+
+    @informative('4h')
+    # @informative('1d', 'BTC/{stake}', fmt='{base}_{column}_{timeframe}')
+    def populate_indicators_4h(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Ichimoku
+        dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
+        return dataframe
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
@@ -173,26 +188,32 @@ class IchimokuRebondStrategy(IStrategy):
         dataframe['ichimoku-spanB-futur'] = ((dataframe['high'].rolling(window=52).max()) + (dataframe['low'].rolling(window=52).min())) / 2
         dataframe['ichimoku-futur'] = (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur'])
 
-        # Calcul du stoploss effectif pour chaque bougie
+        # Calculate technical indicators needed for stoploss calculations first
+        dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
+        dataframe['rsi'] = ta.RSI(dataframe, timeperiod=14)
+        dataframe['atr'] = ta.ATR(dataframe, timeperiod=14)
+
+        # Calcul du stoploss effectif pour chaque bougie selon la méthode sélectionnée
         if self.use_custom_stoploss_param.value:
             stoploss_prices = []
+            
             for i in range(len(dataframe)):
                 if i < self.lookback_period_for_stoploss.value:
                     stoploss_prices.append(np.nan)
                 else:
-                    recent_lows = (
-                        dataframe["low"]
-                        .iloc[max(0, i - self.lookback_period_for_stoploss.value) : i]
-                        .dropna()
-                    )
-                    if len(recent_lows) > 0:
-                        lowest_pivot = recent_lows.min()
-                        stoploss_price = (
-                            lowest_pivot * self.stoploss_margin.value
-                        )  # 0.5% sous le pivot
-                        stoploss_prices.append(stoploss_price)
+                    # Use existing helper methods for consistency
+                    if self.use_custom_stoploss_type.value == 'lower':
+                        stoploss_price = self._calculate_stoploss_price_lower(dataframe, i)
+                    elif self.use_custom_stoploss_type.value == 'atr':
+                        stoploss_price = self._calculate_stoploss_price_atr(dataframe, i)
+                    elif self.use_custom_stoploss_type.value == 'lower_and_atr':
+                        stoploss_price = self._calculate_stoploss_price_lower_and_atr(dataframe, i)
                     else:
-                        stoploss_prices.append(np.nan)
+                        # Default fallback
+                        stoploss_price = dataframe["close"].iloc[i] * (1 + self.stoploss)
+                    
+                    stoploss_prices.append(stoploss_price)
+            
             dataframe["stoploss_prices"] = stoploss_prices
         else:
             dataframe["stoploss_prices"] = dataframe["close"] * (1 + self.stoploss)
@@ -202,10 +223,6 @@ class IchimokuRebondStrategy(IStrategy):
         dataframe['tenkan_proximity'] = ((dataframe[["close","open"]].min(axis=1) - dataframe["ichimoku-tenkan"]) / dataframe["ichimoku-tenkan"]).abs()
 
         dataframe['proximity'] = ((dataframe['kinjun_proximity'] < self.kinjun_proximity_threshold.value)) | ((dataframe['tenkan_proximity'] < self.tenkan_proximity_threshold.value))
-
-        dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
-        dataframe['rsi'] = ta.RSI(dataframe, timeperiod=14)
-        dataframe['atr'] = ta.ATR(dataframe, timeperiod=14)
 
         dataframe['engulfing'] = self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'])
         dataframe['ichimoku-futur'] = (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur'])
@@ -308,6 +325,31 @@ class IchimokuRebondStrategy(IStrategy):
 
         return prev_is_bearish & curr_is_bullish & curr_engulfs_prev & curr_is_big
 
+
+    def is_strong_bullish_candle(self, prev_open, prev_close, curr_open, curr_close) -> bool:
+        """
+        Détermine si une bougie forment un pattern de bougie haussière puissante
+        
+        Args:
+            prev_open: Prix d'ouverture de la bougie précédente
+            prev_close: Prix de clôture de la bougie précédente
+            curr_open: Prix d'ouverture de la bougie actuelle
+            curr_close: Prix de clôture de la bougie actuelle
+            
+        Returns:
+            bool: True si le pattern d'engulfing haussier est détecté
+        """
+        # La bougie précédente doit être baissière (rouge)
+        prev_is_bearish = prev_close > prev_open
+
+        # La bougie actuelle doit être haussière (verte)
+        curr_is_bullish = curr_close > curr_open
+
+        # la taille de la bougie doit être x fois supérieure à la précédente
+        curr_is_big = (curr_close - curr_open) > (prev_open - prev_close) * self.engulfing_size_threshold.value
+
+        return prev_is_bearish & curr_is_bullish & curr_is_big
+
     def is_bearish_engulfing(self, prev_open, prev_close, curr_open, curr_close) -> bool:
         """
         Détermine si deux bougies consécutives forment un pattern d'engulfing baissier
@@ -334,13 +376,6 @@ class IchimokuRebondStrategy(IStrategy):
         curr_is_big = (curr_close - curr_open) > (prev_open - prev_close) * self.engulfing_size_threshold.value
 
         return prev_is_bullish & curr_is_bearish & curr_engulfs_prev & curr_is_big
-
-    @informative('1d')
-    # @informative('1d', 'BTC/{stake}', fmt='{base}_{column}_{timeframe}')
-    def populate_indicators_1d(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Ichimoku
-        dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
-        return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
@@ -412,7 +447,10 @@ class IchimokuRebondStrategy(IStrategy):
                 (rebond_close > rebond_spanA) &
                 (rebond_close > rebond_spanB) &
                 (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
-                (rebond_volume > 0)
+                (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
+                (dataframe['close'] > dataframe['sma200_4h']) &
+                (dataframe['rsi'] < self.rsi_entry_max.value) # & 
+                # (dataframe['rsi'] > self.rsi_entry_min.value) 
             ),
             ['enter_long', 'enter_tag']] = (1, 'hammer_rebond')
 
@@ -440,9 +478,43 @@ class IchimokuRebondStrategy(IStrategy):
             (dataframe['close'] > dataframe['ichimoku-spanA']) &
             (dataframe['close'] > dataframe['ichimoku-spanB']) &
             (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
-            (dataframe['volume'] > 0)
+            (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
+            (dataframe['close'] > dataframe['sma200_4h']) &
+            (dataframe['rsi'] < self.rsi_entry_max.value) # & 
+            # (dataframe['rsi'] > self.rsi_entry_min.value) 
         ),
         ['enter_long', 'enter_tag']] = (1, 'engulfing_rebond')
+
+        dataframe.loc[
+        (
+            # Conditions sur la bougie précédente (setup du rebond)
+            (dataframe['ichimoku-tenkan'] >= dataframe['ichimoku-kinjun']) &
+            # (rebond_open > rebond_kinjun) &
+            (
+                ((dataframe['kinjun_proximity'] > 0) & (dataframe['kinjun_proximity'] < self.kinjun_proximity_threshold.value)) |
+                ((dataframe['tenkan_proximity'] > 0) & (dataframe['tenkan_proximity'] < self.tenkan_proximity_threshold.value))
+            ) &
+            # la tenkan doit être ascendante et la kinjun plate ou ascendante
+            (
+                (dataframe['ichimoku-tenkan'].shift(1) < dataframe['ichimoku-tenkan']) &
+                (dataframe['ichimoku-kinjun'].shift(1) <= dataframe['ichimoku-kinjun'])
+            ) &
+            (
+                # bullish engulfing
+                ((dataframe['high'] - dataframe['close']) / (dataframe['high'] - dataframe['open']) < self.strong_bullish_upper_wick_threshold.value) &  # petite mèche haute
+                (self.is_strong_bullish_candle(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close']))
+            ) &
+
+            (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
+            (dataframe['close'] > dataframe['ichimoku-spanA']) &
+            (dataframe['close'] > dataframe['ichimoku-spanB']) &
+            (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
+            (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
+            (dataframe['close'] > dataframe['sma200_4h']) &
+            (dataframe['rsi'] < self.rsi_entry_max.value) # & 
+            # (dataframe['rsi'] > self.rsi_entry_min.value) 
+        ),
+        ['enter_long', 'enter_tag']] = (1, 'strong_bullish_rebond')
 
         return dataframe
 
@@ -477,7 +549,106 @@ class IchimokuRebondStrategy(IStrategy):
         )  # 0.5% sous le plus bas
         return lowest_price
 
-    # Custom stoploss: Set the stoploss based on the lowest low of the last 8 candles before entry
+    def _calculate_stoploss_price_lower(self, dataframe: DataFrame, i: int) -> float:
+        """
+        Helper method to calculate lower-based stoploss price for a specific candle index
+        """
+        recent_lows = (
+            dataframe["low"]
+            .iloc[max(0, i - self.lookback_period_for_stoploss.value) : i]
+            .dropna()
+        )
+        if len(recent_lows) > 0:
+            lowest_pivot = recent_lows.min()
+            return lowest_pivot * self.stoploss_margin.value
+        return np.nan
+
+    def _calculate_stoploss_price_atr(self, dataframe: DataFrame, i: int) -> float:
+        """
+        Helper method to calculate ATR-based stoploss price for a specific candle index
+        """
+        current_close = dataframe["close"].iloc[i]
+        current_atr = dataframe["atr"].iloc[i] if not pd.isna(dataframe["atr"].iloc[i]) else 0
+        return current_close - (self.atr_stoploss_multiplier.value * current_atr)
+
+    def _calculate_stoploss_price_lower_and_atr(self, dataframe: DataFrame, i: int) -> float:
+        """
+        Helper method to calculate combined lower+ATR stoploss price for a specific candle index
+        """
+        stoploss_price_lower = self._calculate_stoploss_price_lower(dataframe, i)
+        current_atr = dataframe["atr"].iloc[i] if not pd.isna(dataframe["atr"].iloc[i]) else 0
+        
+        if not pd.isna(stoploss_price_lower):
+            return stoploss_price_lower - self.atr_stoploss_multiplier.value * current_atr
+        return current_atr
+
+    def calculate_stoploss_lower(self, pair: str, trade: Trade, current_rate: float) -> float:
+        """
+        Calculate stoploss based on the lowest price of the last n candles
+        
+        :param pair: Trading pair
+        :param trade: Current trade
+        :param current_rate: Current market rate
+        :return: Stoploss ratio
+        """
+        # Get dataframe and use helper method for consistency
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair=pair, timeframe=self.timeframe)
+        last_candle_index = len(dataframe) - 1
+        lowest_price = self._calculate_stoploss_price_lower(dataframe, last_candle_index)
+
+        # Convertir en ratio relatif au prix courant
+        ratio = stoploss_from_absolute(
+            lowest_price,
+            current_rate,
+            is_short=trade.is_short,
+            leverage=trade.leverage,
+        )
+        return ratio
+
+    def calculate_stoploss_atr(self, pair: str, trade: Trade, current_rate: float) -> float:
+        """
+        Calculate stoploss based on ATR (Average True Range)
+        
+        :param pair: Trading pair
+        :param trade: Current trade
+        :param current_rate: Current market rate
+        :return: Stoploss ratio
+        """
+        # Get dataframe and use helper method for consistency
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair=pair, timeframe=self.timeframe)
+        last_candle_index = len(dataframe) - 1
+        lowest_price = self._calculate_stoploss_price_atr(dataframe, last_candle_index)
+        
+        ratio = stoploss_from_absolute(
+            lowest_price,
+            current_rate,
+            is_short=trade.is_short,
+            leverage=trade.leverage,
+        )
+        return ratio
+
+    def calculate_stoploss_lower_and_atr(self, pair: str, trade: Trade, current_rate: float) -> float:
+        """
+        Calculate stoploss based on the minimum between lowest price and ATR-based price
+        
+        :param pair: Trading pair
+        :param trade: Current trade
+        :param current_rate: Current market rate
+        :return: Stoploss ratio
+        """
+        # Get dataframe and use helper method for consistency
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair=pair, timeframe=self.timeframe)
+        last_candle_index = len(dataframe) - 1
+        lowest_price = self._calculate_stoploss_price_lower_and_atr(dataframe, last_candle_index)
+        
+        ratio = stoploss_from_absolute(
+            lowest_price,
+            current_rate,
+            is_short=trade.is_short,
+            leverage=trade.leverage,
+        )
+        return ratio
+
     def custom_stoploss(
         self,
         pair: str,
@@ -495,36 +666,17 @@ class IchimokuRebondStrategy(IStrategy):
             if trade.get_custom_data("stop_price_ratio") is not None:
                 return None
 
-            if self.previous_low_stoploss.value:
-                # 2. Calcul du plus bas sur les 8 dernières bougies avant l'entrée
-                lowest_price = self.calculate_lowest_price_last_n_candles(
-                    pair, self.lookback_period_for_stoploss.value
-                )
-
-                # 3. Convertir en ratio relatif au prix courant
-                ratio = stoploss_from_absolute(
-                    lowest_price,
-                    current_rate,
-                    is_short=trade.is_short,
-                    leverage=trade.leverage,
-                )
-                trade.set_custom_data(key="stop_price_ratio", value=ratio)
-            elif self.atr_stoploss.value:
-                dataframe, _ = self.dp.get_analyzed_dataframe(
-                    pair=pair, timeframe=self.timeframe
-                )
-                atr = dataframe['atr'].iloc[-1]
-                lowest_price = current_rate - self.atr_stoploss_multiplier.value * atr
-                ratio = stoploss_from_absolute(
-                    lowest_price,
-                    current_rate,
-                    is_short=trade.is_short,
-                    leverage=trade.leverage,
-                )
-                trade.set_custom_data(key="stop_price_ratio", value=ratio)
+            # Calculate stoploss ratio based on the selected method
+            if self.use_custom_stoploss_type.value == 'lower':
+                ratio = self.calculate_stoploss_lower(pair, trade, current_rate)
+            elif self.use_custom_stoploss_type.value == 'atr':
+                ratio = self.calculate_stoploss_atr(pair, trade, current_rate)
+            elif self.use_custom_stoploss_type.value == 'lower_and_atr':
+                ratio = self.calculate_stoploss_lower_and_atr(pair, trade, current_rate)
             else:
                 ratio = 0
-                trade.set_custom_data(key="stop_price_ratio", value=ratio)
+
+            trade.set_custom_data(key="stop_price_ratio", value=ratio)
         else:
             return 0
         return ratio
@@ -539,13 +691,31 @@ class IchimokuRebondStrategy(IStrategy):
         max_stake: float,
         **kwargs,
     ) -> float:
+        
+        # Get total wallet balance
+        total_stake_amount = self.wallets.get_total_stake_amount()
+
         dataframe, _ = self.dp.get_analyzed_dataframe(
             pair=pair, timeframe=self.timeframe
         )
+        
         if self.use_custom_stoploss_param.value:
-            stoploss_price = self.calculate_lowest_price_last_n_candles(
-                pair, self.lookback_period_for_stoploss.value
-            )
+            # Calculate stoploss price using existing helper methods
+            if self.use_custom_stoploss_type.value == 'lower':
+                stoploss_price = self.calculate_lowest_price_last_n_candles(
+                    pair, self.lookback_period_for_stoploss.value
+                )
+            elif self.use_custom_stoploss_type.value == 'atr':
+                # Use the last candle index for ATR calculation
+                last_candle_index = len(dataframe) - 1
+                stoploss_price = self._calculate_stoploss_price_atr(dataframe, last_candle_index)
+            elif self.use_custom_stoploss_type.value == 'lower_and_atr':
+                # Use the last candle index for combined calculation
+                last_candle_index = len(dataframe) - 1
+                stoploss_price = self._calculate_stoploss_price_lower_and_atr(dataframe, last_candle_index)
+            else:
+                # Fallback to default
+                stoploss_price = current_rate + self.stoploss * current_rate
         else:
             stoploss_price = current_rate + self.stoploss * current_rate
 
@@ -555,12 +725,29 @@ class IchimokuRebondStrategy(IStrategy):
 
         if stop_distance <= 0:
             return min_stake
-        K = max_stake
-        stake = (K / 100) / stop_distance * current_rate * 2  # Risque de 2% du capital
-        # print(f"Custom stake for {pair} at {current_time} is {stake}")
 
-        if stake > max_stake:
-            return max_stake
+        # Calculate risk per trade (2% of total portfolio)
+        risk_percent = 0.02  # 2% risk per trade
+        risk_amount = total_stake_amount * risk_percent
+
+        # Calculate position size based on risk
+        # risk_amount = position_size * (stop_distance / current_rate)
+        # Therefore: position_size = risk_amount / (stop_distance / current_rate)
+        stake = risk_amount / (stop_distance / current_rate)
+
+        # Apply limits
+        stake = max(min_stake, min(stake, max_stake))
+    
+        # Additional safety: never use more than 50% of available capital per trade
+        max_position_size = total_stake_amount * 0.50
+        stake = min(stake, max_position_size)
+
+        # K = max_stake
+        # stake = (K / 100) / stop_distance * current_rate * 2  # Risque de 2% du capital
+        # # print(f"Custom stake for {pair} at {current_time} is {stake}")
+
+        # if stake > max_stake:
+        #     return max_stake
 
         return stake
 
