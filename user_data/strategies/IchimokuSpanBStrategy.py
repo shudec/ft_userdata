@@ -114,17 +114,30 @@ class IchimokuSpanBStrategy(IStrategy):
 
     plot_config = {
         "main_plot": {
-            "tema": {},
-            "sar": {"color": "white"},
+            'ichimoku-tenkan': {'color': 'red'},
+            'ichimoku-kinjun': {'color': 'blue'},
+            # 'kinjun_threshold': {'color': 'orange', 'linestyle': 'dotted'},
+            # By omitting color, a random color is selected.
+            # 'sma200': {'color': 'lightblue'},
+            # fill area between senkou_a and senkou_b
+            'ichimoku-spanA': {
+                'color': 'lightgreen', #optional
+                'fill_to': 'ichimoku-spanB',
+                'fill_label': 'Ichimoku Cloud', #optional
+                'fill_color': 'green', #optional
+            },
+            # plot senkou_b, too. Not only the area to it.
+            'ichimoku-spanB': {'color': 'darkgreen'},
+            "ichimoku-chiku": {'color': 'purple'},
         },
         "subplots": {
-            "MACD": {
-                "macd": {"color": "blue"},
-                "macdsignal": {"color": "orange"},
-            },
-            "RSI": {
-                "rsi": {"color": "red"},
-            },
+            # "MACD": {
+            #     "macd": {"color": "blue"},
+            #     "macdsignal": {"color": "orange"},
+            # },
+            # "RSI": {
+            #     "rsi": {"color": "red"},
+            # },
         },
     }
 

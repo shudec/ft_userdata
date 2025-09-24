@@ -55,35 +55,40 @@ class IchimokuRebondStrategy(IStrategy):
     # Hyperopt parameters
     rsi_entry_max = IntParameter(30, 70, default=70, space="buy", optimize=False)
     rsi_entry_min = IntParameter(10, 50, default=10, space="buy", optimize=False)
-    volume_factor = CategoricalParameter([0, 0.25, 0.5, 1, 1.5, 2, 2.5, 3], default=0.5, space="buy", optimize=True)
+    volume_factor = CategoricalParameter([0, 0.25, 0.5, 1, 1.5, 2, 2.5, 3], default=0.5, space="buy", optimize=False)
     # entry_kinjun_sup_tenkan = BooleanParameter(default=False, space="buy", optimize=False)
     # entry_sma200 = BooleanParameter(default=False, space="buy", optimize=False)
     # entry_span_futur = BooleanParameter(default=False, space="buy", optimize=False)
     # entry_spanA_sup_spanB = BooleanParameter(default=False, space="buy", optimize=False)
     # entry_kinjun_sup_spanA = BooleanParameter(default=False, space="buy", optimize=False)
     # entry_kinjun_sup_spanB = BooleanParameter(default=False, space="buy", optimize=False)
-    hammer_body_threshold = DecimalParameter(0.1, 1, default=0.2, space="buy", optimize=True)
-    hammer_head_threshold = DecimalParameter(0.01, 0.99, default=0.1, space="buy", optimize=True)
-    hammer_strength_threshold = DecimalParameter(0.001, 0.05, default=0.01, space="buy", optimize=True)
-    engulfing_size_threshold = CategoricalParameter([1.1, 1.2, 1.5, 2, 2.5, 3], default=2, space="buy", optimize=True)
-    engulfing_size_threshold = CategoricalParameter([1.1, 1.2, 1.5, 2, 2.5, 3], default=2, space="buy", optimize=True)
-    confirmation_candle = BooleanParameter(default=True, space="buy", optimize=True)
-    flat_kinjun_threshold = IntParameter(0, 20, default=4, space="buy", optimize=True)
-    kinjun_proximity_threshold = DecimalParameter(0, 0.002, default=0.001, space="buy", optimize=True)
-    tenkan_proximity_threshold = DecimalParameter(0, 0.002, default=0.001, space="buy", optimize=True)
-    confirmation_chiku = BooleanParameter(default=True, space="buy", optimize=True)
-    bullish_engulfing_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=True)
-    strong_bullish_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=True)
+    hammer_body_threshold = DecimalParameter(0.1, 1, default=0.2, space="buy", optimize=False)
+    hammer_head_threshold = DecimalParameter(0.01, 0.99, default=0.1, space="buy", optimize=False)
+    hammer_strength_threshold = DecimalParameter(0.001, 0.05, default=0.01, space="buy", optimize=False)
+    engulfing_size_threshold = CategoricalParameter([1.1, 1.2, 1.5, 2, 2.5, 3], default=2, space="buy", optimize=False)
+    engulfing_size_threshold = CategoricalParameter([1.1, 1.2, 1.5, 2, 2.5, 3], default=2, space="buy", optimize=False)
+    confirmation_candle = BooleanParameter(default=True, space="buy", optimize=False)
+    flat_kinjun_threshold = IntParameter(0, 20, default=4, space="buy", optimize=False)
+    kinjun_proximity_threshold = DecimalParameter(0, 0.01, default=0.001, space="buy", optimize=True)
+    tenkan_proximity_threshold = DecimalParameter(0, 0.01, default=0.001, space="buy", optimize=True)
+    confirmation_chiku = BooleanParameter(default=True, space="buy", optimize=False)
+    bullish_engulfing_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=False)
+    strong_bullish_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=False)
+    entry_adx_threshold = CategoricalParameter([5, 10, 15, 20, 25, 30, 40, 50], default=20, space="buy", optimize=False)
 
 
-    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=True)
-    lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=True)
-    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=True)
-    stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=True)
-    kinjun_threshold = DecimalParameter(0.995, 1, default=1, space="sell", optimize=True)
-    use_custom_stoploss_type = CategoricalParameter(['lower', 'atr', 'lower_and_atr', 'none'], default='lower', space="sell", optimize=True)
-    use_sell_signal_param = BooleanParameter(default=True, space="sell", optimize=True)
-    atr_stoploss_multiplier = CategoricalParameter([0.5, 1, 1.5, 2, 2.5, 3], default=1.5, space="sell", optimize=True)
+    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
+    lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=False)
+    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=False)
+    stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=False)
+    kinjun_threshold = DecimalParameter(0.995, 1, default=1, space="sell", optimize=False)
+    use_custom_stoploss_type = CategoricalParameter(['lower', 'atr', 'lower_and_atr', 'none'], default='lower', space="sell", optimize=False)
+    use_sell_signal_param = BooleanParameter(default=True, space="sell", optimize=False)
+    atr_stoploss_multiplier = CategoricalParameter([0.5, 1, 1.5, 2, 2.5, 3], default=1.5, space="sell", optimize=False)
+    custom_sell_atr_factor = CategoricalParameter([2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6], default=4.5, space="sell", optimize=False)
+    use_sell_kinjun_signal = BooleanParameter(default=False, space="sell", optimize=False)
+    use_sell_ichimoku_cloud_signal = BooleanParameter(default=True, space="sell", optimize=False)
+    use_sell_ichimoku_futur_cloud_signal = BooleanParameter(default=False, space="sell", optimize=False)
 
     use_custom_stoploss = use_custom_stoploss_param.value
 
@@ -116,34 +121,44 @@ class IchimokuRebondStrategy(IStrategy):
                 "color": "grey",
                 "linestyle": "dotted",
             },
+            "custom_exit_signal": {
+                "color": "orange",
+            },
+            "custom_sell_signal": {
+                "color": "yellow",
+            },
         },
         "subplots": {
-            "engulfing": {
-                "engulfing": {"color": "white", "type": "bar"},
-            },
-            "Proximities": {
-                # "kinjun_proximity": {"color": "blue", "type": "bar"},
-                # "tenkan_proximity": {"color": "orange", "type": "bar"},
-                "proximity": {"color": "green", "type": "bar"},
-            },
-            "Ichimoku Future": {
-                "ichimoku-futur": {"color": "green", "type": "bar"},
-            },
-            "Tenkan/Kinjun Increasing": {
-                "tenkan_kinjun_increasing": {"color": "green", "type": "bar"},
-            },
+            # "engulfing": {
+            #     "engulfing": {"color": "white", "type": "bar"},
+            # },
+            # "Proximities": {
+            #     # "kinjun_proximity": {"color": "blue", "type": "bar"},
+            #     # "tenkan_proximity": {"color": "orange", "type": "bar"},
+            #     "proximity": {"color": "green", "type": "bar"},
+            # },
+            # "Ichimoku Future": {
+            #     "ichimoku-futur": {"color": "green", "type": "bar"},
+            # },
+            # "Tenkan/Kinjun Increasing": {
+            #     "tenkan_kinjun_increasing": {"color": "green", "type": "bar"},
+            # },
             # "Last Candle Under Cloud": {
             #     "last_candle_under_cloud": {"color": "red", "type": "bar"},
             # },
-            "Ichimoku Chikou Free": {
-                "ichimoku-chiku-free": {"color": "purple", "type": "bar"},
-            },
+            # "Ichimoku Chikou Free": {
+            #     "ichimoku-chiku-free": {"color": "purple", "type": "bar"},
+            # },
             # "rsi": {
             #     "rsi": {"color": "purple"},
             # },
-            "Volume": {
-                "volume": {"color": "blue", "type": "bar"},
-                "volume_sma": {"color": "orange"},
+            # "Volume": {
+            #     "volume": {"color": "blue", "type": "bar"},
+            #     "volume_sma": {"color": "orange"},
+            # },
+            "ADX": {
+                "adx_range": {"color": "red"},
+                # "adx": {"color": "red"},
             },
         },
     }
@@ -267,6 +282,12 @@ class IchimokuRebondStrategy(IStrategy):
 
         dataframe['ichimoku-chiku-free'] = ((dataframe['ichimoku-chiku'] > dataframe['close'].shift(26)) & (dataframe['ichimoku-chiku'] > dataframe['ichimoku-spanA'].shift(26)) & (dataframe['ichimoku-chiku'] > dataframe['ichimoku-spanB'].shift(26)))
 
+        dataframe['custom_sell_signal'] = dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * 2
+        dataframe['custom_exit_signal'] = (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * self.custom_sell_atr_factor.value).shift(1)
+
+        dataframe['adx'] = ta.ADX(dataframe, timeperiod=14)
+        dataframe['adx_range'] = ta.ADX(dataframe, timeperiod=14) < self.entry_adx_threshold.value
+
         return dataframe
 
     def is_hammer_candle(self, open_price, high_price, low_price, close_price) -> bool:
@@ -381,6 +402,10 @@ class IchimokuRebondStrategy(IStrategy):
         """
         Signaux d'achat basés sur divergence RSI haussière + bougie verte importante
         """
+
+        # Filtrer si bougie journalière < nuage ichimoku ?
+
+
         if self.confirmation_candle.value:
             # Variables pour la bougie précédente (setup)
             rebond_tenkan = dataframe['ichimoku-tenkan'].shift(1)
@@ -396,6 +421,7 @@ class IchimokuRebondStrategy(IStrategy):
             tenkan_proximity = dataframe['tenkan_proximity'].shift(1)
             rebond_kinjun_spanA_futur = dataframe['ichimoku-spanA-futur'].shift(1)
             rebond_kinjun_spanB_futur = dataframe['ichimoku-spanB-futur'].shift(1)
+            rebond_adx = dataframe['adx'].shift(1)
         else:
             # Variables pour la bougie actuelle (setup)
             rebond_tenkan = dataframe['ichimoku-tenkan']
@@ -411,9 +437,11 @@ class IchimokuRebondStrategy(IStrategy):
             tenkan_proximity = dataframe['tenkan_proximity']
             rebond_kinjun_spanA_futur = dataframe['ichimoku-spanA-futur']
             rebond_kinjun_spanB_futur = dataframe['ichimoku-spanB-futur']
+            rebond_adx = dataframe['adx']
 
         dataframe.loc[
             (
+                (rebond_adx > self.entry_adx_threshold.value) &
                 # Conditions sur la bougie précédente (setup du rebond)
                 (rebond_tenkan >= rebond_kinjun) &
                 # (rebond_close < rebond_tenkan) &
@@ -448,6 +476,7 @@ class IchimokuRebondStrategy(IStrategy):
                 (rebond_close > rebond_spanB) &
                 (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
                 (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
+                # (dataframe["close"] < (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * 2)) &
                 (dataframe['close'] > dataframe['sma200_4h'])
                 # (dataframe['rsi'] < self.rsi_entry_max.value) # & 
                 # (dataframe['rsi'] > self.rsi_entry_min.value) 
@@ -456,6 +485,7 @@ class IchimokuRebondStrategy(IStrategy):
 
         dataframe.loc[
         (
+            (dataframe['adx'] > self.entry_adx_threshold.value) &
             # Conditions sur la bougie précédente (setup du rebond)
             (dataframe['ichimoku-tenkan'] >= dataframe['ichimoku-kinjun']) &
             # (rebond_open > rebond_kinjun) &
@@ -479,6 +509,7 @@ class IchimokuRebondStrategy(IStrategy):
             (dataframe['close'] > dataframe['ichimoku-spanB']) &
             (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
             (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
+            # (dataframe["close"] < (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * 2)) &
             (dataframe['close'] > dataframe['sma200_4h'])
             # (dataframe['rsi'] < self.rsi_entry_max.value) # & 
             # (dataframe['rsi'] > self.rsi_entry_min.value) 
@@ -487,6 +518,7 @@ class IchimokuRebondStrategy(IStrategy):
 
         dataframe.loc[
         (
+            (dataframe['adx'] > self.entry_adx_threshold.value) &
             # Conditions sur la bougie précédente (setup du rebond)
             (dataframe['ichimoku-tenkan'] >= dataframe['ichimoku-kinjun']) &
             # (rebond_open > rebond_kinjun) &
@@ -510,6 +542,7 @@ class IchimokuRebondStrategy(IStrategy):
             (dataframe['close'] > dataframe['ichimoku-spanB']) &
             (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
             (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
+            # (dataframe["close"] < (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * 2)) &
             (dataframe['close'] > dataframe['sma200_4h'])
             # (dataframe['rsi'] < self.rsi_entry_max.value) # & 
             # (dataframe['rsi'] > self.rsi_entry_min.value) 
@@ -524,13 +557,24 @@ class IchimokuRebondStrategy(IStrategy):
         """
 
         if self.use_sell_signal_param.value:
-            dataframe.loc[
-                (
-                    # qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"] * self.kinjun_threshold.value)
-                    qtpylib.crossed_below(dataframe["close"], dataframe[["ichimoku-spanA","ichimoku-spanB"]].min(axis=1))
-                ),
-                "exit_long",
-            ] = 1
+            if self.use_sell_kinjun_signal.value :
+                dataframe.loc[
+                    (
+                        qtpylib.crossed_below(dataframe["close"], dataframe["ichimoku-kinjun"] * self.kinjun_threshold.value)
+                    ),
+                    ["exit_long", "exit_tag"]] = (1, 'kinjun_crossed_exit')
+            if self.use_sell_ichimoku_cloud_signal.value :
+                dataframe.loc[
+                    (
+                        qtpylib.crossed_below(dataframe["close"], dataframe[["ichimoku-spanA","ichimoku-spanB"]].min(axis=1)) 
+                    ),
+                    ["exit_long", "exit_tag"]] = (1, 'ichimoku_cloud_crossed_exit')
+            if self.use_sell_ichimoku_futur_cloud_signal.value :
+                dataframe.loc[
+                    (
+                    qtpylib.crossed_below(dataframe["close"], (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * self.custom_sell_atr_factor.value))
+                    ),
+                    ["exit_long", "exit_tag"]] = (1, 'ichimoku_cloud_futur_exit')
 
         return dataframe
 
@@ -796,5 +840,14 @@ class IchimokuRebondStrategy(IStrategy):
         # Si le profit actuel atteint le take profit, vendre
         if current_profit >= target_profit:
             return f"take_profit_{self.take_profit_multiplier.value}R"
+        
+        # ## Vendre si le prix est au dessus du nuage Ichimoku projeté + x*ATR
+        # dataframe, _ = self.dp.get_analyzed_dataframe(
+        #     pair=pair, timeframe=self.timeframe
+        # )
+        # if len(dataframe) > 0:
+        #     cloud_upper_limit = (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * self.custom_sell_atr_factor.value).iloc[-1]
+        #     if current_rate > cloud_upper_limit:
+        #         return "sell_ichimoku_futur_cloud"
 
         return None
