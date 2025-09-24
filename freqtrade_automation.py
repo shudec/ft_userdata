@@ -970,9 +970,9 @@ def main():
         'spaces': 'roi',
         'random_state': args.random_state if args.random_state else Random().randint(1, 10000),
         'epochs': args.epochs,
-        'hyperopt_timerange': '20170801-20191231',
-        # 'backtest_timerange': '20170801-20231231'
-        'backtest_timerange': '20240101-20251231'
+        'hyperopt_timerange': '20170801-20231231',
+        'backtest_timerange': '20170801-20231231'
+        # 'backtest_timerange': '20240101-20251231'
     }
     
     print("⚙️  CONFIGURATION:")

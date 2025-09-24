@@ -760,9 +760,9 @@ class IchimokuRebondStrategy(IStrategy):
                 stoploss_price = self._calculate_stoploss_price_lower_and_atr(dataframe, last_candle_index)
             else:
                 # Fallback to default
-                stoploss_price = current_rate + self.stoploss * current_rate
+                stoploss_price = current_rate * (1 + self.stoploss)
         else:
-            stoploss_price = current_rate + self.stoploss * current_rate
+            stoploss_price = current_rate * (1 + self.stoploss)
 
         # print(f"Custom stake check for {pair} at {current_time} with current rate {current_rate}, stoploss price {stoploss_price}")
 
