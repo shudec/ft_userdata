@@ -55,7 +55,7 @@ class IchimokuRebondStrategy(IStrategy):
     # Hyperopt parameters
     rsi_entry_max = IntParameter(30, 70, default=70, space="buy", optimize=False)
     rsi_entry_min = IntParameter(10, 50, default=10, space="buy", optimize=False)
-    volume_factor = CategoricalParameter([0, 0.25, 0.5, 1, 1.5, 2, 2.5, 3], default=0.5, space="buy", optimize=False)
+    volume_factor = CategoricalParameter([0, 0.25, 0.5, 1, 1.5, 2, 2.5, 3], default=0.5, space="buy", optimize=True)
     # entry_kinjun_sup_tenkan = BooleanParameter(default=False, space="buy", optimize=False)
     # entry_sma200 = BooleanParameter(default=False, space="buy", optimize=False)
     # entry_span_futur = BooleanParameter(default=False, space="buy", optimize=False)
@@ -71,24 +71,25 @@ class IchimokuRebondStrategy(IStrategy):
     flat_kinjun_threshold = IntParameter(0, 20, default=4, space="buy", optimize=False)
     kinjun_proximity_threshold = DecimalParameter(0, 0.01, default=0.001, space="buy", optimize=True)
     tenkan_proximity_threshold = DecimalParameter(0, 0.01, default=0.001, space="buy", optimize=True)
-    confirmation_chiku = BooleanParameter(default=True, space="buy", optimize=False)
+    confirmation_chiku = BooleanParameter(default=True, space="buy", optimize=True)
     bullish_engulfing_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=False)
     strong_bullish_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=False)
-    entry_adx_threshold = CategoricalParameter([5, 10, 15, 20, 25, 30, 40, 50], default=20, space="buy", optimize=False)
+    entry_adx_threshold = CategoricalParameter([5, 10, 15, 20, 25, 30, 40, 50], default=5, space="buy", optimize=True)
 
 
-    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
-    lookback_period_for_stoploss = IntParameter(0, 10, default=5, space="sell", optimize=False)
+    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=True)
+    lookback_period_for_stoploss = IntParameter(1, 10, default=5, space="sell", optimize=True)
     take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=False)
-    stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=False)
-    kinjun_threshold = DecimalParameter(0.995, 1, default=1, space="sell", optimize=False)
-    use_custom_stoploss_type = CategoricalParameter(['lower', 'atr', 'lower_and_atr', 'none'], default='lower', space="sell", optimize=False)
-    use_sell_signal_param = BooleanParameter(default=True, space="sell", optimize=False)
-    atr_stoploss_multiplier = CategoricalParameter([0.5, 1, 1.5, 2, 2.5, 3], default=1.5, space="sell", optimize=False)
-    custom_sell_atr_factor = CategoricalParameter([2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6], default=4.5, space="sell", optimize=False)
-    use_sell_kinjun_signal = BooleanParameter(default=False, space="sell", optimize=False)
-    use_sell_ichimoku_cloud_signal = BooleanParameter(default=True, space="sell", optimize=False)
-    use_sell_ichimoku_futur_cloud_signal = BooleanParameter(default=False, space="sell", optimize=False)
+    stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=True)
+    kinjun_threshold = DecimalParameter(0.995, 1, default=1, space="sell", optimize=True)
+    use_custom_stoploss_type = CategoricalParameter(['lower', 'atr', 'lower_and_atr', 'none'], default='lower', space="sell", optimize=True)
+    use_custom_sell = BooleanParameter(default=True, space="sell", optimize=False)
+    use_sell_signal_param = BooleanParameter(default=True, space="sell", optimize=True)
+    atr_stoploss_multiplier = CategoricalParameter([0.5, 1, 1.5, 2, 2.5, 3], default=1.5, space="sell", optimize=True)
+    custom_sell_atr_factor = CategoricalParameter([1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6], default=4.5, space="sell", optimize=True)
+    use_sell_kinjun_signal = BooleanParameter(default=False, space="sell", optimize=True)
+    use_sell_ichimoku_cloud_signal = BooleanParameter(default=True, space="sell", optimize=True)
+    use_sell_ichimoku_futur_cloud_signal = BooleanParameter(default=False, space="sell", optimize=True)
 
     use_custom_stoploss = use_custom_stoploss_param.value
 
@@ -106,7 +107,7 @@ class IchimokuRebondStrategy(IStrategy):
             'ichimoku-kinjun': {'color': 'blue'},
             # 'kinjun_threshold': {'color': 'orange', 'linestyle': 'dotted'},
             # By omitting color, a random color is selected.
-            # 'sma200': {'color': 'lightblue'},
+            # 'sma200_4h': {'color': 'lightblue'},
             # fill area between senkou_a and senkou_b
             'ichimoku-spanA': {
                 'color': 'lightgreen', #optional
@@ -129,6 +130,7 @@ class IchimokuRebondStrategy(IStrategy):
             },
         },
         "subplots": {
+            "close_sup_sma200_4h": {"color": "blue", "type": "bar"},
             # "engulfing": {
             #     "engulfing": {"color": "white", "type": "bar"},
             # },
@@ -157,8 +159,8 @@ class IchimokuRebondStrategy(IStrategy):
             #     "volume_sma": {"color": "orange"},
             # },
             "ADX": {
-                "adx_range": {"color": "red"},
-                # "adx": {"color": "red"},
+                # "adx_range": {"color": "red"},
+                "adx": {"color": "red"},
             },
         },
     }
@@ -175,6 +177,11 @@ class IchimokuRebondStrategy(IStrategy):
     def populate_indicators_1d(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         # Ichimoku
         dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
+        dataframe['ichimoku-tenkan'] = ((dataframe['high'].rolling(window=9).max()) + (dataframe['low'].rolling(window=9).min())) / 2
+        dataframe['ichimoku-kinjun'] = ((dataframe['high'].rolling(window=26).max()) + (dataframe['low'].rolling(window=26).min())) / 2
+        dataframe['ichimoku-spanA'] = ((dataframe['ichimoku-tenkan']) + (dataframe['ichimoku-kinjun'])).shift(26) / 2
+        dataframe['ichimoku-spanB'] = ((dataframe['high'].rolling(window=52).max()) + (dataframe['low'].rolling(window=52).min())).shift(26) / 2
+        dataframe['ichimoku-chiku'] = (dataframe['close'].shift(-26))
         return dataframe
 
     @informative('4h')
@@ -182,6 +189,7 @@ class IchimokuRebondStrategy(IStrategy):
     def populate_indicators_4h(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         # Ichimoku
         dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
+        dataframe["close_sup_sma200"] = dataframe["close"] > dataframe["sma200"]
         return dataframe
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
@@ -309,10 +317,10 @@ class IchimokuRebondStrategy(IStrategy):
         total_range = high_price - low_price
 
         # Taille du corps par rapport à la mèche basse
-        body_vs_lower_wick = body_size < lower_wick * self.hammer_body_threshold.value
+        body_vs_lower_wick = body_size / lower_wick < self.hammer_body_threshold.value
 
         # Mèche de la tête par rapport au corps
-        upper_wick_vs_body = upper_wick < body_size * self.hammer_head_threshold.value
+        upper_wick_vs_body = upper_wick / body_size < self.hammer_head_threshold.value
 
         # Bougie importante (range significatif)
         significant_candle = (total_range / low_price) > self.hammer_strength_threshold.value
@@ -477,7 +485,8 @@ class IchimokuRebondStrategy(IStrategy):
                 (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
                 (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
                 # (dataframe["close"] < (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * 2)) &
-                (dataframe['close'] > dataframe['sma200_4h'])
+                (dataframe['close_4h'] > dataframe['sma200_4h']) 
+                # (dataframe['close_1d'] > dataframe[['ichimoku-spanA_1d','ichimoku-spanB_1d']].max(axis=1))
                 # (dataframe['rsi'] < self.rsi_entry_max.value) # & 
                 # (dataframe['rsi'] > self.rsi_entry_min.value) 
             ),
@@ -510,7 +519,8 @@ class IchimokuRebondStrategy(IStrategy):
             (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
             (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
             # (dataframe["close"] < (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * 2)) &
-            (dataframe['close'] > dataframe['sma200_4h'])
+            (dataframe['close_4h'] > dataframe['sma200_4h']) 
+            # (dataframe['close_1d'] > dataframe[['ichimoku-spanA_1d','ichimoku-spanB_1d']].max(axis=1))
             # (dataframe['rsi'] < self.rsi_entry_max.value) # & 
             # (dataframe['rsi'] > self.rsi_entry_min.value) 
         ),
@@ -543,7 +553,8 @@ class IchimokuRebondStrategy(IStrategy):
             (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
             (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
             # (dataframe["close"] < (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * 2)) &
-            (dataframe['close'] > dataframe['sma200_4h'])
+            (dataframe['close_4h'] > dataframe['sma200_4h']) 
+            # (dataframe['close_1d'] > dataframe[['ichimoku-spanA_1d','ichimoku-spanB_1d']].max(axis=1))
             # (dataframe['rsi'] < self.rsi_entry_max.value) # & 
             # (dataframe['rsi'] > self.rsi_entry_min.value) 
         ),
@@ -812,6 +823,8 @@ class IchimokuRebondStrategy(IStrategy):
         if current_profit <= 0:
             return None
 
+        if self.use_custom_sell.value is False:
+            return None
         # Calculer le risque initial (différence entre prix d'entrée et stoploss)
         entry_rate = trade.open_rate
 
@@ -831,7 +844,7 @@ class IchimokuRebondStrategy(IStrategy):
         # stoploss_rate = trade.get_custom_data("stop_price_ratio").value
         risk = entry_rate - stoploss_rate
 
-        # Take profit à 2 fois le risque
+        # Take profit à x fois le risque
         target_rate = entry_rate + (self.take_profit_multiplier.value * risk)
         target_profit = (target_rate - entry_rate) / entry_rate
 

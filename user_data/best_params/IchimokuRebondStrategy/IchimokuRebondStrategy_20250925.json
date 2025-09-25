@@ -15,30 +15,30 @@
       "max_open_trades": 3
     },
     "buy": {
-      "bullish_engulfing_upper_wick_threshold": 0.25,
+      "bullish_engulfing_upper_wick_threshold": 0.156,
       "confirmation_candle": false,
       "confirmation_chiku": false,
-      "engulfing_size_threshold": 1.5,
-      "entry_adx_threshold": 5,
-      "flat_kinjun_threshold": 0,
-      "hammer_body_threshold": 1,
-      "hammer_head_threshold": 0.5,
-      "hammer_strength_threshold": 0.001,
-      "kinjun_proximity_threshold": 0.01,
-      "tenkan_proximity_threshold": 0.01,
+      "engulfing_size_threshold": 2.5,
+      "entry_adx_threshold": 10,
+      "flat_kinjun_threshold": 6,
+      "hammer_body_threshold": 0.951,
+      "hammer_head_threshold": 0.899,
+      "hammer_strength_threshold": 0.006,
+      "kinjun_proximity_threshold": 0.007,
       "rsi_entry_max": 70,
       "rsi_entry_min": 10,
-      "strong_bullish_upper_wick_threshold": 0.5,
+      "strong_bullish_upper_wick_threshold": 0.433,
+      "tenkan_proximity_threshold": 0.007,
       "volume_factor": 0.25
     },
     "sell": {
-      "take_profit_multiplier": 2,
-      "use_custom_sell": true,
-      "atr_stoploss_multiplier": 1.5,
-      "custom_sell_atr_factor": 5.5,
-      "kinjun_threshold": 0.999,
-      "lookback_period_for_stoploss": 8,
+      "atr_stoploss_multiplier": 0.5,
+      "custom_sell_atr_factor": 6,
+      "kinjun_threshold": 0.998,
+      "lookback_period_for_stoploss": 2,
       "stoploss_margin": 0.99,
+      "take_profit_multiplier": 1,
+      "use_custom_sell": false,
       "use_custom_stoploss_param": true,
       "use_custom_stoploss_type": "lower_and_atr",
       "use_sell_ichimoku_cloud_signal": true,
@@ -49,5 +49,5 @@
     "protection": {}
   },
   "ft_stratparam_v": 1,
-  "export_time": "2025-09-25 15:55:26.244212+00:00"
+  "export_time": "2025-09-25 11:39:37.399409+00:00"
 }
