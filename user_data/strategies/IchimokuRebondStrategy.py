@@ -79,7 +79,7 @@ class IchimokuRebondStrategy(IStrategy):
 
     use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=True)
     lookback_period_for_stoploss = IntParameter(1, 10, default=5, space="sell", optimize=True)
-    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=False)
+    take_profit_multiplier = CategoricalParameter([1, 1.5, 2, 2.5, 3], default=2, space="sell", optimize=True)
     stoploss_margin = DecimalParameter(0.990, 1, default=0.999, space="sell", optimize=True)
     kinjun_threshold = DecimalParameter(0.995, 1, default=1, space="sell", optimize=True)
     use_custom_stoploss_type = CategoricalParameter(['lower', 'atr', 'lower_and_atr', 'none'], default='lower', space="sell", optimize=True)
@@ -125,9 +125,9 @@ class IchimokuRebondStrategy(IStrategy):
             "custom_exit_signal": {
                 "color": "orange",
             },
-            "custom_sell_signal": {
-                "color": "yellow",
-            },
+            # "custom_sell_signal": {
+            #     "color": "yellow",
+            # },
         },
         "subplots": {
             "close_sup_sma200_4h": {"color": "blue", "type": "bar"},

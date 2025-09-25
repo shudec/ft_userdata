@@ -972,6 +972,7 @@ def main():
         'epochs': args.epochs,
         # 'hyperopt_timerange': '20170801-20231231',
         'hyperopt_timerange': '20220101-20231231',
+        # 'backtest_timerange': '20220101-20231231',
         # 'backtest_timerange': '20170801-20231231'
         'backtest_timerange': '20240101-20251231'
     }
