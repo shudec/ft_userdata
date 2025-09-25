@@ -15,20 +15,20 @@
       "max_open_trades": 3
     },
     "buy": {
-      "bullish_engulfing_upper_wick_threshold": 0.25,
+      "bullish_engulfing_upper_wick_threshold": 0.4,
       "confirmation_candle": false,
+      "confirmation_chiku": false,
       "engulfing_size_threshold": 1.5,
-      "entry_adx_threshold": 10,
-      "flat_kinjun_threshold": 1,
+      "entry_adx_threshold": 20,
+      "flat_kinjun_threshold": 11,
+      "hammer_body_threshold": 0.614,
+      "hammer_head_threshold": 0.127,
+      "hammer_strength_threshold": 0.04,
       "kinjun_proximity_threshold": 0.003,
       "rsi_entry_max": 70,
       "rsi_entry_min": 10,
-      "strong_bullish_upper_wick_threshold": 0.5,
+      "strong_bullish_upper_wick_threshold": 0.409,
       "tenkan_proximity_threshold": 0.0,
-      "confirmation_chiku": true,
-      "hammer_body_threshold": 0.568,
-      "hammer_head_threshold": 0.565,
-      "hammer_strength_threshold": 0.023,
       "volume_factor": 2.5
     },
     "sell": {
@@ -49,5 +49,5 @@
     "protection": {}
   },
   "ft_stratparam_v": 1,
-  "export_time": "2025-09-25 19:51:57.119647+00:00"
+  "export_time": "2025-09-25 20:28:26.067910+00:00"
 }
