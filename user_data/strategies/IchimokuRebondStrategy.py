@@ -72,6 +72,9 @@ class IchimokuRebondStrategy(IStrategy):
     tenkan_proximity_threshold = DecimalParameter(0, 0.01, default=0.001, space="buy", optimize=False)
     confirmation_chiku = BooleanParameter(default=True, space="buy", optimize=False)
     bullish_engulfing_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=False)
+    engulfing_strength_threshold = DecimalParameter(0.001, 0.05, default=0.01, space="buy", optimize=False)
+    strong_bullish_strength_threshold = DecimalParameter(0.01, 0.05, default=0.02, space="buy", optimize=False)
+    strong_bullish_size_threshold = CategoricalParameter([1.1, 1.2, 1.5, 2, 2.5, 3], default=2, space="buy", optimize=False)
     strong_bullish_upper_wick_threshold = DecimalParameter(0.01, 0.5, default=0.25, space="buy", optimize=False)
     entry_adx_threshold = CategoricalParameter([5, 10, 15, 20, 25, 30, 40, 50], default=5, space="buy", optimize=False)
 
@@ -129,7 +132,18 @@ class IchimokuRebondStrategy(IStrategy):
             # },
         },
         "subplots": {
-            "close_sup_sma200_4h": {"color": "blue", "type": "bar"},
+            "close_sup_sma200_4h": {
+                "close_sup_sma200_4h": {"color": "blue", "type": "bar"},
+            },
+            "ishammer": {
+                "is_hammer": {"color": "green", "type": "bar"},
+            },
+            "is_bullish_engulfing": {
+                "is_bullish_engulfing": {"color": "white", "type": "bar"},
+            },
+            "is_strong_bullish_candle": {
+                "is_strong_bullish_candle": {"color": "purple", "type": "bar"},
+            },
             # "engulfing": {
             #     "engulfing": {"color": "white", "type": "bar"},
             # },
@@ -158,7 +172,7 @@ class IchimokuRebondStrategy(IStrategy):
             #     "volume_sma": {"color": "orange"},
             # },
             "ADX": {
-                # "adx_range": {"color": "red"},
+                "adx_range": {"color": "red"},
                 "adx": {"color": "red"},
             },
         },
@@ -246,7 +260,7 @@ class IchimokuRebondStrategy(IStrategy):
 
         dataframe['proximity'] = ((dataframe['kinjun_proximity'] < self.kinjun_proximity_threshold.value)) | ((dataframe['tenkan_proximity'] < self.tenkan_proximity_threshold.value))
 
-        dataframe['engulfing'] = self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'])
+        dataframe['engulfing'] = self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'], dataframe['low'], dataframe['high'])
         dataframe['ichimoku-futur'] = (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur'])
         dataframe["tenkan_kinjun_increasing"] = (
             (dataframe["ichimoku-tenkan"] >= dataframe["ichimoku-kinjun"])
@@ -295,6 +309,10 @@ class IchimokuRebondStrategy(IStrategy):
         dataframe['adx'] = ta.ADX(dataframe, timeperiod=14)
         dataframe['adx_range'] = ta.ADX(dataframe, timeperiod=14) < self.entry_adx_threshold.value
 
+        dataframe['is_hammer'] = self.is_hammer_candle(dataframe['open'], dataframe['high'], dataframe['low'], dataframe['close']).fillna(True)
+        dataframe['is_bullish_engulfing'] = self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'], dataframe['low'], dataframe['high'])
+        dataframe['is_strong_bullish_candle'] = self.is_strong_bullish_candle(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'], dataframe['low'], dataframe['high'])
+
         return dataframe
 
     def is_hammer_candle(self, open_price, high_price, low_price, close_price) -> bool:
@@ -311,22 +329,29 @@ class IchimokuRebondStrategy(IStrategy):
             bool/Series: True si la bougie respecte les critères d'un marteau
         """
         body_size = (close_price - open_price).abs()
-        lower_wick = close_price.combine(open_price, min) - low_price
-        upper_wick = high_price - close_price.combine(open_price, max)
+        # Use np.minimum and np.maximum for element-wise operations
+        lower_wick = np.minimum(close_price, open_price) - low_price
+        upper_wick = high_price - np.maximum(close_price, open_price)
         total_range = high_price - low_price
 
-        # Taille du corps par rapport à la mèche basse
-        body_vs_lower_wick = body_size / lower_wick < self.hammer_body_threshold.value
+        # Avoid division by zero - use np.where for safer division
+        body_vs_lower_wick = (lower_wick > 0) & (
+            np.where(lower_wick > 0, body_size / lower_wick, np.inf) < self.hammer_body_threshold.value
+        )
 
-        # Mèche de la tête par rapport au corps
-        upper_wick_vs_body = upper_wick / body_size < self.hammer_head_threshold.value
+        # Avoid division by zero - use np.where for safer division
+        upper_wick_vs_body = (body_size > 0) & (
+            np.where(body_size > 0, upper_wick / body_size, np.inf) < self.hammer_head_threshold.value
+        )
 
-        # Bougie importante (range significatif)
-        significant_candle = (total_range / low_price) > self.hammer_strength_threshold.value
+        # Bougie importante
+        significant_candle = (low_price > 0) & (
+            np.where(low_price > 0, total_range / low_price, 0) > self.hammer_strength_threshold.value
+        )
 
         return body_vs_lower_wick & upper_wick_vs_body & significant_candle
 
-    def is_bullish_engulfing(self, prev_open, prev_close, curr_open, curr_close) -> bool:
+    def is_bullish_engulfing(self, prev_open, prev_close, curr_open, curr_close, curr_low, curr_high) -> bool:
         """
         Détermine si deux bougies consécutives forment un pattern d'engulfing haussier
         
@@ -339,6 +364,12 @@ class IchimokuRebondStrategy(IStrategy):
         Returns:
             bool: True si le pattern d'engulfing haussier est détecté
         """
+        # Handle NaN values by filling with False
+        prev_open = prev_open.fillna(0)
+        prev_close = prev_close.fillna(0) 
+        curr_open = curr_open.fillna(0)
+        curr_close = curr_close.fillna(0)
+
         # La bougie précédente doit être baissière (rouge)
         prev_is_bearish = prev_close < prev_open
 
@@ -349,12 +380,30 @@ class IchimokuRebondStrategy(IStrategy):
         curr_engulfs_prev = (curr_open <= prev_close) & (curr_close > prev_open)
 
         # la taille de la bougie doit être x fois supérieure à la précédente
-        curr_is_big = (curr_close - curr_open) > (prev_open - prev_close) * self.engulfing_size_threshold.value
+        prev_body_size = (prev_open - prev_close).abs()
+        curr_body_size = (curr_close - curr_open).abs()
+        
+        # Avoid division by zero using np.where
+        curr_is_big = np.where(
+            prev_body_size > 0,
+            curr_body_size > prev_body_size * self.engulfing_size_threshold.value,
+            False
+        )
 
-        return prev_is_bearish & curr_is_bullish & curr_engulfs_prev & curr_is_big
+        body_size = (curr_close - curr_open).abs()
+        # Use np.minimum and np.maximum for element-wise operations
+        lower_wick = np.minimum(curr_close, curr_open) - curr_low
+        upper_wick = curr_high - np.maximum(curr_close, curr_open)
+        total_range = curr_high - curr_low
+        # Bougie importante
+        significant_candle = (curr_low > 0) & (
+            np.where(curr_low > 0, total_range / curr_low, 0) > self.engulfing_strength_threshold.value
+        )
+
+        return prev_is_bearish & curr_is_bullish & curr_engulfs_prev & curr_is_big & significant_candle
 
 
-    def is_strong_bullish_candle(self, prev_open, prev_close, curr_open, curr_close) -> bool:
+    def is_strong_bullish_candle(self, prev_open, prev_close, curr_open, curr_close, curr_low, curr_high) -> bool:
         """
         Détermine si une bougie forment un pattern de bougie haussière puissante
         
@@ -367,16 +416,39 @@ class IchimokuRebondStrategy(IStrategy):
         Returns:
             bool: True si le pattern d'engulfing haussier est détecté
         """
-        # La bougie précédente doit être baissière (rouge)
-        prev_is_bearish = prev_close > prev_open
+        # Handle NaN values by filling with False
+        prev_open = prev_open.fillna(0)
+        prev_close = prev_close.fillna(0) 
+        curr_open = curr_open.fillna(0)
+        curr_close = curr_close.fillna(0)
+
+        # La bougie précédente doit être haussière (verte) - FIXED: was prev_close > prev_open
+        prev_is_bullish = prev_close > prev_open
 
         # La bougie actuelle doit être haussière (verte)
         curr_is_bullish = curr_close > curr_open
 
-        # la taille de la bougie doit être x fois supérieure à la précédente
-        curr_is_big = (curr_close - curr_open) > (prev_open - prev_close) * self.engulfing_size_threshold.value
+        # Bougie importante
+        total_range = curr_high - curr_low
+        significant_candle = (curr_low > 0) & (
+            np.where(curr_low > 0, total_range / curr_low, 0) > self.strong_bullish_strength_threshold.value
+        )
 
-        return prev_is_bearish & curr_is_bullish & curr_is_big
+        # la taille de la bougie doit être x fois supérieure à la précédente
+        prev_body_size = (prev_open - prev_close).abs()
+        curr_body_size = (curr_close - curr_open).abs()
+        curr_is_big = np.where(
+            prev_body_size > 0,
+            curr_body_size > prev_body_size * self.strong_bullish_size_threshold.value,
+            False
+        )
+
+        # la mèche haute doit être inférieure à x% de la bougie
+        upper_wick_threshold = curr_body_size * self.strong_bullish_upper_wick_threshold.value
+        upper_wick = curr_high - np.maximum(curr_close, curr_open)
+        upper_wick_ok = upper_wick < upper_wick_threshold
+
+        return prev_is_bullish & curr_is_bullish & curr_is_big & upper_wick_ok & significant_candle
 
     def is_bearish_engulfing(self, prev_open, prev_close, curr_open, curr_close) -> bool:
         """
@@ -509,7 +581,7 @@ class IchimokuRebondStrategy(IStrategy):
             (
                 # bullish engulfing
                 ((dataframe['high'] - dataframe['close']) / (dataframe['high'] - dataframe['open']) < self.bullish_engulfing_upper_wick_threshold.value) &  # petite mèche haute
-                (self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close']))
+                (self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'], dataframe['low'], dataframe['high']))
             ) &
 
             (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
@@ -543,7 +615,7 @@ class IchimokuRebondStrategy(IStrategy):
             (
                 # bullish engulfing
                 ((dataframe['high'] - dataframe['close']) / (dataframe['high'] - dataframe['open']) < self.strong_bullish_upper_wick_threshold.value) &  # petite mèche haute
-                (self.is_strong_bullish_candle(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close']))
+                (self.is_strong_bullish_candle(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'], dataframe['low'], dataframe['high']))
             ) &
 
             (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
