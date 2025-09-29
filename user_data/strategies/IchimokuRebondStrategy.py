@@ -204,6 +204,8 @@ class IchimokuRebondStrategy(IStrategy):
         dataframe['ichimoku-spanA'] = ((dataframe['ichimoku-tenkan']) + (dataframe['ichimoku-kinjun'])).shift(26) / 2
         dataframe['ichimoku-spanB'] = ((dataframe['high'].rolling(window=52).max()) + (dataframe['low'].rolling(window=52).min())).shift(26) / 2
         dataframe['ichimoku-chiku'] = (dataframe['close'].shift(-26))
+
+        dataframe['close_sup_sma200'] = dataframe['close'] > dataframe['sma200']
         return dataframe
 
     @informative('4h')
@@ -233,9 +235,7 @@ class IchimokuRebondStrategy(IStrategy):
         dataframe['ichimoku-spanB-futur'] = ((dataframe['high'].rolling(window=52).max()) + (dataframe['low'].rolling(window=52).min())) / 2
         dataframe['ichimoku-futur'] = (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur'])
 
-        # Calculate technical indicators needed for stoploss calculations first
         dataframe['sma200'] = ta.SMA(dataframe, timeperiod=200)
-        dataframe['rsi'] = ta.RSI(dataframe, timeperiod=14)
         dataframe['atr'] = ta.ATR(dataframe, timeperiod=14)
 
         # Calcul du stoploss effectif pour chaque bougie selon la méthode sélectionnée
@@ -264,18 +264,11 @@ class IchimokuRebondStrategy(IStrategy):
             dataframe["stoploss_prices"] = dataframe["close"] * (1 + self.stoploss)
 
         dataframe['kinjun_threshold'] = dataframe["ichimoku-kinjun"] * self.kinjun_threshold.value
-        dataframe['kinjun_proximity'] = ((dataframe[["close","open"]].min(axis=1) - dataframe["ichimoku-kinjun"]) / dataframe["ichimoku-kinjun"]).abs()
-        dataframe['tenkan_proximity'] = ((dataframe[["close","open"]].min(axis=1) - dataframe["ichimoku-tenkan"]) / dataframe["ichimoku-tenkan"]).abs()
 
-        dataframe['proximity'] = ((dataframe['kinjun_proximity'] < self.kinjun_proximity_threshold.value)) | ((dataframe['tenkan_proximity'] < self.tenkan_proximity_threshold.value))
 
         dataframe['engulfing'] = self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'], dataframe['low'], dataframe['high'])
         dataframe['ichimoku-futur'] = (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur'])
-        dataframe["tenkan_kinjun_increasing"] = (
-            (dataframe["ichimoku-tenkan"] >= dataframe["ichimoku-kinjun"])
-            & (dataframe["ichimoku-tenkan"].shift(1) < dataframe["ichimoku-tenkan"])
-            & (dataframe["ichimoku-kinjun"].shift(1) <= dataframe["ichimoku-kinjun"])
-        )
+
 
         # Calculate last_candle_under_cloud iteratively
         dataframe['last_candle_under_cloud'] = 0
@@ -310,17 +303,36 @@ class IchimokuRebondStrategy(IStrategy):
                         prev_value = dataframe['last_candle_under_cloud'].iloc[i-1]
                         dataframe.loc[dataframe.index[i], 'last_candle_under_cloud'] = prev_value + 1
 
-        dataframe['ichimoku-chiku-free'] = ((dataframe['ichimoku-chiku'] > dataframe['close'].shift(26)) & (dataframe['ichimoku-chiku'] > dataframe['ichimoku-spanA'].shift(26)) & (dataframe['ichimoku-chiku'] > dataframe['ichimoku-spanB'].shift(26)))
+        # dataframe['ichimoku-chiku-free'] = ((dataframe['ichimoku-chiku'] > dataframe['close'].shift(26)) & (dataframe['ichimoku-chiku'] > dataframe['ichimoku-spanA'].shift(26)) & (dataframe['ichimoku-chiku'] > dataframe['ichimoku-spanB'].shift(26)))
 
         dataframe['custom_sell_signal'] = dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * 2
         dataframe['custom_exit_signal'] = (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * self.custom_sell_atr_factor.value).shift(1)
 
-        dataframe['adx'] = ta.ADX(dataframe, timeperiod=14)
+
         dataframe['adx_range'] = ta.ADX(dataframe, timeperiod=14) < self.entry_adx_threshold.value
 
         dataframe['is_hammer'] = self.is_hammer_candle(dataframe['open'], dataframe['high'], dataframe['low'], dataframe['close']).fillna(True)
         dataframe['is_bullish_engulfing'] = self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'], dataframe['low'], dataframe['high'])
         dataframe['is_strong_bullish_candle'] = self.is_strong_bullish_candle(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'], dataframe['low'], dataframe['high'])
+
+        # indicators to help debugging and strategy tuning
+        dataframe['rsi'] = ta.RSI(dataframe, timeperiod=14)
+        dataframe['atr_strength'] = (dataframe['atr'] / dataframe['close']) * 100
+        dataframe['adx'] = ta.ADX(dataframe, timeperiod=14)
+        dataframe['close_sup_sma200'] = dataframe['close'] > dataframe['sma200']
+        dataframe['ichimoku-chiku-free'] = ((dataframe['ichimoku-chiku'] > dataframe['close'].shift(26)) & (dataframe['ichimoku-chiku'] > dataframe['ichimoku-spanA'].shift(26)) & (dataframe['ichimoku-chiku'] > dataframe['ichimoku-spanB'].shift(26)))
+        dataframe['kinjun_flat'] = dataframe['ichimoku-kinjun'].shift(1) == dataframe['ichimoku-kinjun']
+        dataframe['ichimoku-tenkan_sup_kinjun'] = dataframe['ichimoku-tenkan'] >= dataframe['ichimoku-kinjun']
+        dataframe["tenkan_kinjun_increasing"] = (
+            (dataframe["ichimoku-tenkan"] >= dataframe["ichimoku-kinjun"])
+            & (dataframe["ichimoku-tenkan"].shift(1) < dataframe["ichimoku-tenkan"])
+            & (dataframe["ichimoku-kinjun"].shift(1) <= dataframe["ichimoku-kinjun"])
+        )
+        dataframe['kinjun_proximity'] = ((dataframe[["close","open"]].min(axis=1) - dataframe["ichimoku-kinjun"]) / dataframe["ichimoku-kinjun"]).abs()
+        dataframe['tenkan_proximity'] = ((dataframe[["close","open"]].min(axis=1) - dataframe["ichimoku-tenkan"]) / dataframe["ichimoku-tenkan"]).abs()
+        dataframe['proximity'] = ((dataframe['kinjun_proximity'] < self.kinjun_proximity_threshold.value)) | ((dataframe['tenkan_proximity'] < self.tenkan_proximity_threshold.value))
+        dataframe['volume_sup_avg'] = dataframe['volume'] > dataframe['volume_sma']
+
 
         return dataframe
 
@@ -549,8 +561,8 @@ class IchimokuRebondStrategy(IStrategy):
             buy_hammer_conditions = (
                 # (rebond_adx > self.entry_adx_threshold.value) &
                 # Conditions sur la bougie précédente (setup du rebond)
-                (rebond_tenkan >= rebond_kinjun)
-                &
+                # (rebond_tenkan >= rebond_kinjun)
+                # &
                 # (rebond_close < rebond_tenkan) &
                 # (rebond_open < rebond_tenkan) &
                 # (rebond_close > rebond_kinjun) &
@@ -576,13 +588,13 @@ class IchimokuRebondStrategy(IStrategy):
                             rebond_open, rebond_high, rebond_low, rebond_close
                         )
                     )
-                    &
-                    # confirmation bougie actuelle verte (sans biais)
-                    (
-                        rebond_close > rebond_open
-                        if self.confirmation_candle.value
-                        else True
-                    )
+                    # &
+                    # # confirmation bougie actuelle verte (sans biais)
+                    # (
+                    #     rebond_close > rebond_open
+                    #     if self.confirmation_candle.value
+                    #     else True
+                    # )
                 )  # &
                 # (rebond_kinjun_spanA_futur > rebond_kinjun_spanB_futur) &
                 # (rebond_close > rebond_spanA) &
