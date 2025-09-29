@@ -3,9 +3,9 @@ import json
 import pandas as pd
 
 # === FILE PATHS ===
-indicator_file = "user_data/backtest_results/ichimoku_rebond_entries.csv"
-merged_output = "user_data/backtest_results/merged_trades.csv"
-corr_output = "user_data/backtest_results/indicator_loss_correlation.csv"
+indicator_file = "user_data/analysis/ichimoku_rebond_entries.csv"
+merged_output = "user_data/analysis/merged_trades.csv"
+corr_output = "user_data/analysis/indicator_loss_correlation.csv"
 
 # === GET LATEST BACKTEST ZIP FILE ===
 last_result_path = "user_data/backtest_results/.last_result.json"
@@ -53,10 +53,11 @@ if trades_list is None or not isinstance(trades_list, list):
     raise ValueError("Could not find trades data (as a list) in the loaded JSON structure")
 
 trades_df = pd.DataFrame(trades_list)
+trades_df.to_csv("user_data/analysis/all_trades.csv", index=False)
 
 # Ensure correct datetime format and timezone consistency
 trades_df["open_date"] = pd.to_datetime(trades_df["open_date"]).dt.tz_localize(None)  # Remove timezone
-trades_df["close_date"] = pd.to_datetime(trades_df["close_date"]).dt.tz_localize(None)  # Remove timezone
+indicators_df["timestamp"] = pd.to_datetime(indicators_df["timestamp"]).dt.tz_localize(None)  # Remove timezone
 
 # Ensure indicators date is also timezone-naive (if it has timezone info)
 if indicators_df["date"].dt.tz is not None:
@@ -67,9 +68,13 @@ merged_df = pd.merge(
     trades_df,
     indicators_df,
     left_on=["pair", "open_date"],
-    right_on=["pair", "date"],
+    right_on=["pair", "timestamp"],
     how="inner"
 )
+
+# Transform all boolean columns to int
+bool_cols = merged_df.select_dtypes(include=["bool"]).columns
+merged_df[bool_cols] = merged_df[bool_cols].astype(int)
 
 # === ADD LOSS FLAG ===
 merged_df["is_loss"] = (merged_df["profit_abs"] < 0).astype(int)
@@ -84,7 +89,7 @@ numeric_cols = merged_df.select_dtypes(include=["number"]).columns.tolist()
 
 # Exclude target itself
 if "is_loss" in numeric_cols:
-    numeric_cols.remove("is_loss")
+    numeric_cols = ["adx"]
 
 correlations = {}
 for col in numeric_cols:
