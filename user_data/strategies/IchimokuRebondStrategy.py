@@ -102,6 +102,8 @@ class IchimokuRebondStrategy(IStrategy):
     use_sell_ichimoku_cloud_signal = BooleanParameter(default=True, space="sell", optimize=False)
     use_sell_ichimoku_futur_cloud_signal = BooleanParameter(default=False, space="sell", optimize=False)
 
+    ml_signal_strength_threshold = DecimalParameter(0, 100, default=50, space="buy", optimize=False)
+
     use_custom_stoploss = use_custom_stoploss_param.value
 
     # Strategy configuration - plain boolean values expected by Freqtrade
@@ -334,6 +336,18 @@ class IchimokuRebondStrategy(IStrategy):
         dataframe['volume_sup_avg'] = dataframe['volume'] > dataframe['volume_sma']
 
 
+
+
+        # ML-based filtering of buy signals for hammer
+        rsi_tenkan_score = indicators['rsi'] * indicators['tenkan_proximity']
+        kinjun_tenkan_score = indicators['kinjun_proximity'] * indicators['tenkan_proximity']
+        atr_adx_score = indicators['atr_strength'] * indicators['adx']
+        
+        # Combined signal strength
+        ml_signal_strength_hammer = (rsi_tenkan_score + kinjun_tenkan_score + atr_adx_score) / 3
+       
+
+
         return dataframe
 
     def is_hammer_candle(self, open_price, high_price, low_price, close_price) -> bool:
@@ -516,6 +530,7 @@ class IchimokuRebondStrategy(IStrategy):
                 header=not os.path.exists(self.EXPORT_FILE)
             )
 
+
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
         Signaux d'achat basés sur divergence RSI haussière + bougie verte importante
@@ -606,6 +621,7 @@ class IchimokuRebondStrategy(IStrategy):
                 # (dataframe['close_1d'] > dataframe[['ichimoku-spanA_1d','ichimoku-spanB_1d']].max(axis=1))
                 # (dataframe['rsi'] < self.rsi_entry_max.value) # &
                 # (dataframe['rsi'] > self.rsi_entry_min.value)
+                & (self.ml_signal_strength_hammer > self.ml_signal_strength_threshold.value)
             )
             dataframe.loc[buy_hammer_conditions, ["enter_long", "enter_tag"]] = (
                 1,
