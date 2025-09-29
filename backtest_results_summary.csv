@@ -1,3 +1,4 @@
-timestamp,strategy,random_state,total_daily_avg_trades,absolute_profit_usdt,total_profit_pct,cagr_pct,sortino,sharpe,calmar,sqn,max_consecutive_wins_loss,min_balance_usdt,max_balance_usdt,market_change_pct
-2025-09-27T22:16:59.675822,IchimokuRebondStrategy,4468,114 / 0.08,-229.375,-22.94,-6.81,-0.77,-0.17,-1.15,-1.15,6 / 11,748.665,1044.784,94.84
-2025-09-27T22:28:38.170273,IchimokuRebondStrategy,5111,114 / 0.08,-229.375,-22.94,-6.81,-0.77,-0.17,-1.15,-1.15,6 / 11,748.665,1044.784,94.84
+timestamp,strategy,random_state,total_daily_avg_trades,absolute_profit_usdt,total_profit_pct,cagr_pct,sortino,sharpe,calmar,sqn,max_consecutive_wins_loss,min_balance_usdt,max_balance_usdt,absolute_drawdown_pct,market_change_pct
+2025-09-29T11:00:15.389628,IchimokuRebondStrategy,1393,114 / 0.08,-231.638,-23.16,-6.89,-0.73,-0.18,-1.16,-1.16,6 / 11,747.851,1044.607,28.41,91.49
+2025-09-29T11:17:58.199253,IchimokuRebondStrategy,6706,114 / 0.08,-231.638,-23.16,-6.89,-0.73,-0.18,-1.16,-1.16,6 / 11,747.851,1044.607,28.41,91.49
+2025-09-29T15:12:58.528106,IchimokuRebondStrategy,4229,114 / 0.08,-231.638,-23.16,-6.89,-0.73,-0.18,-1.16,-1.16,6 / 11,747.851,1044.607,28.41,91.49

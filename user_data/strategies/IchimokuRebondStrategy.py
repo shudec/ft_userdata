@@ -50,7 +50,7 @@ class IchimokuRebondStrategy(IStrategy):
         # "180": 0.05   # 5% après 3h
     }
 
-    EXPORT_FILE = "/freqtrade/user_data/ichimoku_rebond_entries.csv"
+    EXPORT_FILE = "/freqtrade/user_data/analysis/ichimoku_rebond_entries.csv"
 
     # Trailing stoploss
     trailing_stop = False
@@ -493,8 +493,10 @@ class IchimokuRebondStrategy(IStrategy):
         """
         entries = dataframe[condition].copy()
         if not entries.empty:
+            # print(f"Logging {len(entries)} entries for {metadata} with tag {tag}")
+            # print(f"dataframe columns: {dataframe.columns.tolist()}")
             entries['pair'] = metadata['pair']
-            entries['timestamp'] = entries.index
+            entries['timestamp'] = pd.to_datetime(dataframe['date']) + pd.Timedelta(hours=1)
             entries['entry_type'] = tag
             entries.to_csv(
                 self.EXPORT_FILE,
