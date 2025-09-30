@@ -339,10 +339,10 @@ class IchimokuRebondStrategy(IStrategy):
 
 
         # ML-based filtering of buy signals for hammer
-        rsi_tenkan_score = indicators['rsi'] * indicators['tenkan_proximity']
-        kinjun_tenkan_score = indicators['kinjun_proximity'] * indicators['tenkan_proximity']
-        atr_adx_score = indicators['atr_strength'] * indicators['adx']
-        
+        rsi_tenkan_score = dataframe['rsi'].mul(dataframe['tenkan_proximity'])
+        kinjun_tenkan_score = dataframe['kinjun_proximity'].mul(dataframe['tenkan_proximity'])
+        atr_adx_score = dataframe['atr_strength'].mul(dataframe['adx'])
+
         # Combined signal strength
         ml_signal_strength_hammer = (rsi_tenkan_score + kinjun_tenkan_score + atr_adx_score) / 3
        
@@ -621,7 +621,7 @@ class IchimokuRebondStrategy(IStrategy):
                 # (dataframe['close_1d'] > dataframe[['ichimoku-spanA_1d','ichimoku-spanB_1d']].max(axis=1))
                 # (dataframe['rsi'] < self.rsi_entry_max.value) # &
                 # (dataframe['rsi'] > self.rsi_entry_min.value)
-                & (self.ml_signal_strength_hammer > self.ml_signal_strength_threshold.value)
+                # & (self.ml_signal_strength_hammer > self.ml_signal_strength_threshold.value)
             )
             dataframe.loc[buy_hammer_conditions, ["enter_long", "enter_tag"]] = (
                 1,
