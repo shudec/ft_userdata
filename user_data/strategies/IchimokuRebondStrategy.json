@@ -35,9 +35,9 @@
       "use_engulfing_entry": false,
       "use_hammer_entry": true,
       "use_strong_bullish_entry": false,
-      "ml_signal_strength_threshold_max": 0.371,
-      "ml_signal_strength_threshold_min": 0.076,
-      "volume_factor": 1.5
+      "ml_signal_strength_threshold_max": 0.814,
+      "ml_signal_strength_threshold_min": 0.119,
+      "volume_factor": 1
     },
     "sell": {
       "atr_stoploss_multiplier": 0.5,
@@ -46,7 +46,7 @@
       "lookback_period_for_stoploss": 6,
       "stoploss_margin": 0.998,
       "take_profit_multiplier": 1,
-      "use_custom_sell": false,
+      "use_custom_sell": true,
       "use_custom_stoploss_param": true,
       "use_custom_stoploss_type": "lower_and_atr",
       "use_sell_ichimoku_cloud_signal": false,
@@ -57,5 +57,5 @@
     "protection": {}
   },
   "ft_stratparam_v": 1,
-  "export_time": "2025-09-30 17:01:37.799236+00:00"
+  "export_time": "2025-09-30 20:36:22.938767+00:00"
 }
