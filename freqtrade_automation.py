@@ -788,10 +788,10 @@ class FreqtradeAutomation:
         # Save hyperopt log
         strategy = self.config['strategy']
         random_state = self.config['random_state']
-        log_filename = f"{strategy}-{random_state}-hyperopt.md"
+        log_filename = f"history/{strategy}-{random_state}-hyperopt.md"
         
         if self.save_hyperopt_log(self.hyperopt_output, self.hyperopt_command, hyperopt_results):
-            print(f"✅ Hyperopt report saved to {log_filename}")
+            print(f"✅ Hyperopt report saved to history/{log_filename}")
         else:
             print("⚠️  Warning: Failed to save hyperopt log file")
             logger.warning("Failed to save hyperopt log file")
@@ -834,10 +834,10 @@ class FreqtradeAutomation:
         # Save backtest log
         strategy = self.config['strategy']
         random_state = self.config.get('random_state', 'unknown')
-        log_filename = f"{strategy}-{random_state}-backtest.md"
+        log_filename = f"history/{strategy}-{random_state}-backtest.md"
         
         if self.save_backtest_log(self.backtest_output, self.backtest_command, backtest_results):
-            print(f"✅ Backtest report saved to {log_filename}")
+            print(f"✅ Backtest report saved to history/{log_filename}")
         else:
             print("⚠️  Warning: Failed to save backtest log file")
             logger.warning("Failed to save backtest log file")
@@ -899,7 +899,7 @@ class FreqtradeAutomation:
         print("\n📍 STEP 5/5: Generating Report and Evaluation...")
         strategy = self.config['strategy']
         random_state = self.config['random_state']
-        log_filename = f"{strategy}-{random_state}.md"
+        log_filename = f"history/{strategy}-{random_state}.md"
         
         if self.save_formatted_log(self.hyperopt_output, self.backtest_output, 
                                  self.hyperopt_command, self.backtest_command,
@@ -973,9 +973,9 @@ def main():
         'epochs': args.epochs,
         # 'hyperopt_timerange': '20170801-20231231',
         'hyperopt_timerange': '20220101-20231231',
-        # 'backtest_timerange': '20220101-20231231',
+        'backtest_timerange': '20220101-20241231',
         # 'backtest_timerange': '20170801-20231231'
-        'backtest_timerange': '20220101-20251231'
+        # 'backtest_timerange': '20220101-20251231'
     }
     
     print("⚙️  CONFIGURATION:")

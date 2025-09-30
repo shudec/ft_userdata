@@ -102,7 +102,8 @@ class IchimokuRebondStrategy(IStrategy):
     use_sell_ichimoku_cloud_signal = BooleanParameter(default=True, space="sell", optimize=False)
     use_sell_ichimoku_futur_cloud_signal = BooleanParameter(default=False, space="sell", optimize=False)
 
-    ml_signal_strength_threshold = DecimalParameter(0, 100, default=50, space="buy", optimize=False)
+    ml_signal_strength_threshold_min = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
+    ml_signal_strength_threshold_max = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
 
     use_custom_stoploss = use_custom_stoploss_param.value
 
@@ -143,18 +144,21 @@ class IchimokuRebondStrategy(IStrategy):
             # },
         },
         "subplots": {
-            "close_sup_sma200_4h": {
-                "close_sup_sma200_4h": {"color": "blue", "type": "bar"},
+            "ml_signal_strength_hammer": {
+                "ml_signal_strength_hammer": {"color": "blue", "type": "bar"},
             },
-            "ishammer": {
-                "is_hammer": {"color": "green", "type": "bar"},
-            },
-            "is_bullish_engulfing": {
-                "is_bullish_engulfing": {"color": "white", "type": "bar"},
-            },
-            "is_strong_bullish_candle": {
-                "is_strong_bullish_candle": {"color": "purple", "type": "bar"},
-            },
+            # "close_sup_sma200_4h": {
+            #     "close_sup_sma200_4h": {"color": "blue", "type": "bar"},
+            # },
+            # "ishammer": {
+            #     "is_hammer": {"color": "green", "type": "bar"},
+            # },
+            # "is_bullish_engulfing": {
+            #     "is_bullish_engulfing": {"color": "white", "type": "bar"},
+            # },
+            # "is_strong_bullish_candle": {
+            #     "is_strong_bullish_candle": {"color": "purple", "type": "bar"},
+            # },
             # "engulfing": {
             #     "engulfing": {"color": "white", "type": "bar"},
             # },
@@ -343,8 +347,18 @@ class IchimokuRebondStrategy(IStrategy):
         kinjun_tenkan_score = dataframe['kinjun_proximity'].mul(dataframe['tenkan_proximity'])
         atr_adx_score = dataframe['atr_strength'].mul(dataframe['adx'])
 
+        # Normalize scores before combining
+        def min_max_normalize(series):
+            return (series - series.min()) / (series.max() - series.min() + 1e-9)
+
+        rsi_tenkan_score_norm = min_max_normalize(rsi_tenkan_score)
+        kinjun_tenkan_score_norm = min_max_normalize(kinjun_tenkan_score)
+        atr_adx_score_norm = min_max_normalize(atr_adx_score)
+
         # Combined signal strength
-        ml_signal_strength_hammer = (rsi_tenkan_score + kinjun_tenkan_score + atr_adx_score) / 3
+        dataframe['ml_signal_strength_hammer'] = (
+            rsi_tenkan_score_norm + kinjun_tenkan_score_norm + atr_adx_score_norm
+        ) / 3
        
 
 
@@ -621,7 +635,8 @@ class IchimokuRebondStrategy(IStrategy):
                 # (dataframe['close_1d'] > dataframe[['ichimoku-spanA_1d','ichimoku-spanB_1d']].max(axis=1))
                 # (dataframe['rsi'] < self.rsi_entry_max.value) # &
                 # (dataframe['rsi'] > self.rsi_entry_min.value)
-                # & (self.ml_signal_strength_hammer > self.ml_signal_strength_threshold.value)
+                & (dataframe['ml_signal_strength_hammer'] > self.ml_signal_strength_threshold_min.value)
+                & (dataframe['ml_signal_strength_hammer'] < self.ml_signal_strength_threshold_max.value)
             )
             dataframe.loc[buy_hammer_conditions, ["enter_long", "enter_tag"]] = (
                 1,
