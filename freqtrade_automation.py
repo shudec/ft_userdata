@@ -359,7 +359,7 @@ class FreqtradeAutomation:
             '--datadir', '/freqtrade/user_data/data/binance',
             '--pairs', 'BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT',
             '--timerange', self.config.get('backtest_timerange', '20220101-20221231'),
-            '--export', 'trades', '--export-filename', 'backtest-result.csv'
+            '--export', 'trades'
         ]
         
         # Display backtesting configuration
