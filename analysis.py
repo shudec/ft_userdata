@@ -3,15 +3,23 @@ import json
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import random
+from collections import defaultdict
+
+# ===== SET RANDOM SEEDS FOR REPRODUCIBILITY =====
+np.random.seed(42)
+random.seed(42)
+print("[✓] Random seeds set for reproducible results")
 
 # ===== MACHINE LEARNING IMPORTS =====
 # These libraries will help us detect non-linear relationships and feature interactions
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.neural_network import MLPClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold
 from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix
 from sklearn.preprocessing import StandardScaler
-from sklearn.feature_selection import mutual_info_classif
+from sklearn.feature_selection import mutual_info_classif, SelectKBest, f_classif, RFE
+from sklearn.linear_model import LogisticRegression
 
 # ===== VISUALIZATION IMPORTS =====
 import matplotlib.pyplot as plt
@@ -34,6 +42,7 @@ sns.set_palette("husl")
 # === FILE PATHS ===
 indicator_file = "user_data/analysis/ichimoku_rebond_entries.csv"
 merged_output = "user_data/analysis/merged_trades.csv"
+merged_output_xlsx = "user_data/analysis/merged_trades.xlsx"
 corr_output = "user_data/analysis/indicator_loss_correlation.csv"
 
 # === GET LATEST BACKTEST ZIP FILE ===
@@ -110,7 +119,8 @@ merged_df["is_loss"] = (merged_df["profit_abs"] < 0).astype(int)
 
 # === SAVE MERGED DATASET ===
 merged_df.to_csv(merged_output, index=False)
-print(f"[+] Merged dataset saved to {merged_output}")
+merged_df.to_excel(merged_output_xlsx, index=False)
+print(f"[+] Merged dataset saved to {merged_output_xlsx}")
 
 # === CORRELATION ANALYSIS ===
 # Select only numeric columns
@@ -118,7 +128,7 @@ numeric_cols = merged_df.select_dtypes(include=["number"]).columns.tolist()
 
 # Exclude target itself
 if "is_loss" in numeric_cols:
-    numeric_cols = ["rsi", "atr_strength", "adx", "close_sup_sma200", "ichimoku-chiku-free", "kinjun_flat", "ichimoku-tenkan_sup_kinjun", "tenkan_kinjun_increasing", "kinjun_proximity", "tenkan_proximity", "proximity", "volume_sup_avg"]
+    numeric_cols = ["rsi", "atr_strength", "adx", "close_sup_sma200", "ichimoku-chiku-free", "kinjun_flat", "ichimoku-tenkan_sup_kinjun", "tenkan_kinjun_increasing", "kinjun_proximity", "tenkan_proximity", "proximity", "volume_sup_avg","close_sup_sma200_4h", "close_sup_sma200_1d"]
 
 correlations = {}
 for col in numeric_cols:
@@ -181,6 +191,182 @@ def create_interaction_features(df, indicator_cols):
     print(f"    - Total features: {new_df.shape[1]} (was {len(indicator_cols)})")
     
     return new_df
+
+def stable_feature_selection(X, y, n_runs=10, top_k=15):
+    """
+    Run feature selection multiple times and find stable features.
+    This addresses the variability issue by running selection multiple times
+    and identifying features that consistently rank high.
+    
+    Args:
+        X: Feature matrix
+        y: Target variable
+        n_runs: Number of times to run feature selection
+        top_k: Number of top features to consider in each run
+        
+    Returns:
+        Dictionary with stability metrics for each feature
+    """
+    print(f"\n[+] Running stable feature selection ({n_runs} runs, top {top_k} features each)...")
+    feature_rankings = defaultdict(list)
+    
+    for run in range(n_runs):
+        # Random Forest Feature Importance (with different random state)
+        rf = RandomForestClassifier(
+            n_estimators=100, 
+            random_state=42 + run,  # Different seed each run
+            class_weight='balanced',
+            n_jobs=-1
+        )
+        rf.fit(X, y)
+        
+        # Get feature importance rankings
+        feature_scores = pd.Series(rf.feature_importances_, index=X.columns)
+        top_features = feature_scores.nlargest(top_k).index.tolist()
+        
+        for rank, feature in enumerate(top_features):
+            feature_rankings[feature].append(rank + 1)
+    
+    # Calculate stability metrics
+    stability_results = {}
+    for feature, ranks in feature_rankings.items():
+        stability_results[feature] = {
+            'mean_rank': np.mean(ranks),
+            'std_rank': np.std(ranks),
+            'selection_frequency': len(ranks) / n_runs,
+            'best_rank': min(ranks) if ranks else float('inf'),
+            'worst_rank': max(ranks) if ranks else float('inf')
+        }
+    
+    return stability_results
+
+def ensemble_feature_selection(X, y, top_k=15):
+    """
+    Combine multiple feature selection methods for more robust results.
+    Different methods capture different aspects of feature importance.
+    
+    Args:
+        X: Feature matrix
+        y: Target variable
+        top_k: Number of top features to select
+        
+    Returns:
+        DataFrame with rankings from different methods and ensemble score
+    """
+    print(f"\n[+] Running ensemble feature selection with {top_k} top features...")
+    methods_scores = {}
+    
+    # Method 1: Statistical F-test (captures linear relationships)
+    print("    - F-test feature selection...")
+    selector_f = SelectKBest(f_classif, k=min(top_k, X.shape[1]))
+    selector_f.fit(X, y)
+    f_scores = pd.Series(selector_f.scores_, index=X.columns)
+    methods_scores['f_test_rank'] = f_scores.rank(ascending=False)
+    
+    # Method 2: Random Forest Importance (captures non-linear + interactions)
+    print("    - Random Forest importance...")
+    rf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced', n_jobs=-1)
+    rf.fit(X, y)
+    rf_scores = pd.Series(rf.feature_importances_, index=X.columns)
+    methods_scores['rf_rank'] = rf_scores.rank(ascending=False)
+    
+    # Method 3: Mutual Information (captures any dependency)
+    print("    - Mutual Information...")
+    mi_scores = mutual_info_classif(X, y, random_state=42)
+    mi_series = pd.Series(mi_scores, index=X.columns)
+    methods_scores['mi_rank'] = mi_series.rank(ascending=False)
+    
+    # Method 4: Recursive Feature Elimination (sequential selection)
+    print("    - Recursive Feature Elimination...")
+    try:
+        # Scale the data for logistic regression
+        scaler_rfe = StandardScaler()
+        X_scaled = scaler_rfe.fit_transform(X)
+        
+        # Use liblinear solver which works better with many features and scaled data
+        rfe = RFE(
+            LogisticRegression(
+                random_state=42, 
+                max_iter=2000,      # Increased iterations
+                solver='liblinear', # Better for many features
+                C=1.0,              # Regularization strength
+                class_weight='balanced'  # Handle class imbalance
+            ), 
+            n_features_to_select=min(top_k, X.shape[1])
+        )
+        rfe.fit(X_scaled, y)
+        rfe_scores = pd.Series(rfe.ranking_, index=X.columns)
+        methods_scores['rfe_rank'] = rfe_scores  # Lower is better for RFE
+        
+    except Exception as e:
+        print(f"    - RFE failed ({e}), using Random Forest RFE instead...")
+        # Fallback to Random Forest RFE if Logistic Regression fails
+        rfe_rf = RFE(
+            RandomForestClassifier(n_estimators=50, random_state=42, class_weight='balanced', n_jobs=-1),
+            n_features_to_select=min(top_k, X.shape[1])
+        )
+        rfe_rf.fit(X, y)
+        rfe_scores = pd.Series(rfe_rf.ranking_, index=X.columns)
+        methods_scores['rfe_rank'] = rfe_scores  # Lower is better for RFE
+    
+    # Combine rankings (lower ensemble_score is better)
+    ensemble_df = pd.DataFrame(methods_scores)
+    ensemble_df['ensemble_score'] = ensemble_df.mean(axis=1)
+    ensemble_df['ensemble_rank'] = ensemble_df['ensemble_score'].rank()
+    
+    return ensemble_df.sort_values('ensemble_score')
+
+def select_final_stable_features(stability_results, ensemble_results, min_frequency=0.6, max_std=2.5, top_n=15):
+    """
+    Select final features based on stability criteria and ensemble ranking.
+    
+    Args:
+        stability_results: Results from stable_feature_selection
+        ensemble_results: Results from ensemble_feature_selection
+        min_frequency: Minimum selection frequency (0.6 = appears in 60% of runs)
+        max_std: Maximum standard deviation in rankings (2.5 = reasonably stable)
+        top_n: Maximum number of features to select
+        
+    Returns:
+        List of selected stable features
+    """
+    print(f"\n[+] Selecting final stable features (min_freq={min_frequency}, max_std={max_std})...")
+    
+    # Filter stable features
+    stable_features = []
+    for feature, metrics in stability_results.items():
+        if (metrics['selection_frequency'] >= min_frequency and 
+            metrics['std_rank'] <= max_std):
+            stable_features.append({
+                'feature': feature,
+                'stability_score': metrics['selection_frequency'] - (metrics['std_rank'] / 10),
+                'mean_rank': metrics['mean_rank'],
+                'frequency': metrics['selection_frequency'],
+                'std_rank': metrics['std_rank']
+            })
+    
+    # Sort by stability score and ensemble ranking
+    stable_df = pd.DataFrame(stable_features)
+    if len(stable_df) > 0:
+        # Add ensemble ranking for stable features
+        stable_df['ensemble_score'] = stable_df['feature'].map(
+            lambda x: ensemble_results.loc[x, 'ensemble_score'] if x in ensemble_results.index else 999
+        )
+        
+        # Final ranking combines stability and ensemble score
+        stable_df['final_score'] = stable_df['stability_score'] + (1 / (stable_df['ensemble_score'] + 1))
+        stable_df = stable_df.sort_values('final_score', ascending=False)
+        
+        selected_features = stable_df.head(top_n)['feature'].tolist()
+        
+        print(f"    Found {len(stable_features)} stable features")
+        print(f"    Selected top {len(selected_features)} features")
+        
+        return selected_features, stable_df
+    else:
+        print("    No features met stability criteria, falling back to ensemble top features")
+        fallback_features = ensemble_results.head(top_n).index.tolist()
+        return fallback_features, pd.DataFrame()
 
 def analyze_with_random_forest(X_train, X_test, y_train, y_test, feature_names):
     """
@@ -374,12 +560,18 @@ def create_analysis_report(results_dict, output_path="user_data/analysis/ml_anal
 This report analyzes trading indicators using advanced machine learning techniques to discover non-linear relationships and feature interactions that simple correlation analysis cannot detect.
 
 ## Dataset Overview
-- **Total Features Analyzed**: {results_dict['total_features']}
 - **Original Indicators**: {results_dict['original_indicators']}
-- **Engineered Features**: {results_dict['total_features'] - results_dict['original_indicators']}
+- **Total Engineered Features**: {results_dict.get('enhanced_features', 'N/A')}
+- **Stable Features Selected**: {results_dict['total_features']}
 - **Training Samples**: {results_dict['train_samples']}
 - **Test Samples**: {results_dict['test_samples']}
 - **Loss Rate**: {results_dict['loss_rate']:.2%}
+
+## Feature Stability Analysis
+This analysis now uses **stable feature selection** to ensure consistent results across multiple runs:
+- **Stability Runs**: 15 independent feature selection runs
+- **Selection Criteria**: Features appearing in ≥50% of runs with ranking stability
+- **Methods Combined**: Random Forest, F-test, Mutual Information, Recursive Feature Elimination
 
 ## Model Performance Comparison
 
@@ -428,6 +620,27 @@ This report analyzes trading indicators using advanced machine learning techniqu
 """
         for i, row in enumerate(results_dict['shap_importance'].head(10).itertuples()):
             report += f"\n{i+1}. **{row.feature}**: {row.shap_importance:.4f}"
+    
+    # Add stability analysis results
+    if results_dict.get('stability_results') is not None:
+        report += f"""
+
+### Feature Stability Analysis
+*(Shows how consistently features were selected across multiple runs)*
+
+| Rank | Feature | Selection Frequency | Avg Rank | Rank Stability |
+|------|---------|-------------------|----------|----------------|"""
+        
+        # Sort stable features by selection frequency
+        stable_items = sorted(results_dict['stability_results'].items(), 
+                            key=lambda x: x[1]['selection_frequency'], reverse=True)
+        
+        for i, (feature, metrics) in enumerate(stable_items[:10], 1):
+            freq = metrics['selection_frequency']
+            avg_rank = metrics['mean_rank']
+            std_rank = metrics['std_rank']
+            stability = "🟢 Excellent" if std_rank < 1.5 else "🟡 Good" if std_rank < 2.5 else "🟠 Fair"
+            report += f"\n| {i} | {feature} | {freq:.2f} | {avg_rank:.1f} | {stability} |"
     
     report += f"""
 
@@ -499,36 +712,73 @@ try:
     print(f"    - Total samples: {len(y)}")
     print(f"    - Loss rate: {y.mean():.2%}")
     
+    # ===== STABLE FEATURE SELECTION =====
+    print("\n" + "="*60)
+    print("STABLE FEATURE SELECTION ANALYSIS")
+    print("="*60)
+    
+    # Run stability analysis
+    stability_results = stable_feature_selection(X_enhanced, y, n_runs=15, top_k=20)
+    
+    # Run ensemble feature selection
+    ensemble_results = ensemble_feature_selection(X_enhanced, y, top_k=20)
+    
+    # Select final stable features
+    stable_features, stability_df = select_final_stable_features(
+        stability_results, ensemble_results, 
+        min_frequency=0.5,  # Appears in at least 50% of runs
+        max_std=3.0,        # Reasonable ranking stability
+        top_n=15            # Select top 15 features
+    )
+    
+    print(f"\n[+] Final stable features selected: {len(stable_features)}")
+    for i, feature in enumerate(stable_features[:10], 1):
+        freq = stability_results.get(feature, {}).get('selection_frequency', 0)
+        std_rank = stability_results.get(feature, {}).get('std_rank', 0)
+        print(f"   {i:2d}. {feature:<35} (freq: {freq:.2f}, std: {std_rank:.1f})")
+    
+    # Use stable features for analysis
+    X_stable = X_enhanced[stable_features]
+    
     # Split data for training and testing
     X_train, X_test, y_train, y_test = train_test_split(
-        X_enhanced, y, 
+        X_stable, y, 
         test_size=0.2,           # 20% for testing
         random_state=42,         # Reproducible results
         stratify=y               # Maintain loss/win ratio in both sets
     )
     
+    print(f"\n[+] Training with stable features:")
+    print(f"    - Selected features: {len(stable_features)}")
     print(f"    - Training samples: {len(X_train)}")
     print(f"    - Test samples: {len(X_test)}")
     
     # Store results for reporting
     results = {
-        'total_features': X_enhanced.shape[1],
+        'total_features': len(stable_features),
         'original_indicators': len(existing_indicators),
+        'enhanced_features': X_enhanced.shape[1],
         'train_samples': len(X_train),
         'test_samples': len(X_test),
-        'loss_rate': y.mean()
+        'loss_rate': y.mean(),
+        'stable_features': stable_features,
+        'stability_results': stability_results
     }
+    
+    print("\n" + "="*60)
+    print("MACHINE LEARNING MODEL TRAINING")
+    print("="*60)
     
     # ===== RANDOM FOREST ANALYSIS =====
     rf_model, rf_importance, rf_auc, rf_pred, rf_pred_proba = analyze_with_random_forest(
-        X_train, X_test, y_train, y_test, X_enhanced.columns
+        X_train, X_test, y_train, y_test, X_stable.columns
     )
     results['rf_auc'] = rf_auc
     results['rf_importance'] = rf_importance
     
     # ===== GRADIENT BOOSTING ANALYSIS =====
     gb_model, gb_importance, gb_auc, gb_pred, gb_pred_proba = analyze_with_gradient_boosting(
-        X_train, X_test, y_train, y_test, X_enhanced.columns
+        X_train, X_test, y_train, y_test, X_stable.columns
     )
     results['gb_auc'] = gb_auc
     results['gb_importance'] = gb_importance
@@ -540,7 +790,7 @@ try:
     results['nn_auc'] = nn_auc
     
     # ===== MUTUAL INFORMATION ANALYSIS =====
-    mi_scores = calculate_mutual_information(X_enhanced, y, X_enhanced.columns)
+    mi_scores = calculate_mutual_information(X_stable, y, X_stable.columns)
     results['mi_scores'] = mi_scores
     
     # ===== SHAP INTERPRETABILITY ANALYSIS =====
@@ -560,7 +810,7 @@ try:
     results['best_auc'] = best_auc
     
     if shap_model is not None:
-        shap_importance = generate_shap_analysis(shap_model, X_test, X_enhanced.columns)
+        shap_importance = generate_shap_analysis(shap_model, X_test, X_stable.columns)
         results['shap_importance'] = shap_importance
     
     # ===== SAVE DETAILED RESULTS =====
@@ -570,6 +820,14 @@ try:
     rf_importance.to_csv("user_data/analysis/ml_random_forest_importance.csv", index=False)
     gb_importance.to_csv("user_data/analysis/ml_gradient_boosting_importance.csv", index=False)
     mi_scores.to_csv("user_data/analysis/ml_mutual_information.csv", index=False)
+    ensemble_results.to_csv("user_data/analysis/ml_ensemble_feature_selection.csv")
+    
+    # Save stability analysis results
+    stability_summary = pd.DataFrame(stability_results).T
+    stability_summary.to_csv("user_data/analysis/ml_feature_stability.csv")
+    
+    if len(stability_df) > 0:
+        stability_df.to_csv("user_data/analysis/ml_stable_features_final.csv", index=False)
     
     if results.get('shap_importance') is not None:
         results['shap_importance'].to_csv("user_data/analysis/ml_shap_importance.csv", index=False)
@@ -588,24 +846,32 @@ try:
     
     # ===== SUMMARY =====
     print("\n" + "="*80)
-    print("MACHINE LEARNING ANALYSIS COMPLETE!")
+    print("STABLE MACHINE LEARNING ANALYSIS COMPLETE!")
     print("="*80)
     print(f"✓ Best Model: {best_model_name} (AUC: {best_auc:.4f})")
     print(f"✓ Performance: {'Excellent' if best_auc > 0.8 else 'Good' if best_auc > 0.7 else 'Fair' if best_auc > 0.6 else 'Needs Improvement'}")
+    print(f"✓ Stable Features: {len(stable_features)} selected from {X_enhanced.shape[1]} engineered features")
     print(f"✓ Files Generated:")
     print(f"  - ML Analysis Report: user_data/analysis/ml_analysis_report.md")
     print(f"  - Random Forest Results: user_data/analysis/ml_random_forest_importance.csv")
     print(f"  - Gradient Boosting Results: user_data/analysis/ml_gradient_boosting_importance.csv")
     print(f"  - Mutual Information Results: user_data/analysis/ml_mutual_information.csv")
+    print(f"  - Ensemble Feature Selection: user_data/analysis/ml_ensemble_feature_selection.csv")
+    print(f"  - Feature Stability Analysis: user_data/analysis/ml_feature_stability.csv")
+    print(f"  - Final Stable Features: user_data/analysis/ml_stable_features_final.csv")
     if SHAP_AVAILABLE and shap_model is not None:
         print(f"  - SHAP Interpretability: user_data/analysis/ml_shap_importance.csv")
         print(f"  - SHAP Visualization: user_data/analysis/shap_summary.png")
     
-    print(f"\n🎯 TOP PREDICTIVE FEATURES:")
-    for i, feature in enumerate(all_top_features[:10], 1):
-        print(f"   {i}. {feature}")
+    print(f"\n🎯 TOP STABLE PREDICTIVE FEATURES:")
+    for i, feature in enumerate(stable_features[:10], 1):
+        freq = stability_results.get(feature, {}).get('selection_frequency', 0)
+        mean_rank = stability_results.get(feature, {}).get('mean_rank', 0)
+        print(f"   {i:2d}. {feature:<35} (freq: {freq:.2f}, avg_rank: {mean_rank:.1f})")
     
     print(f"\n📊 Read the full report at: user_data/analysis/ml_analysis_report.md")
+    print(f"\n💡 KEY INSIGHT: These features are now STABLE across multiple runs!")
+    print(f"   Use these {len(stable_features)} features in your trading strategy with confidence.")
     
 except Exception as e:
     print(f"[!] Error in ML analysis: {e}")
