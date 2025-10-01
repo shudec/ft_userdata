@@ -102,8 +102,10 @@ class IchimokuRebondStrategy(IStrategy):
     use_sell_ichimoku_cloud_signal = BooleanParameter(default=True, space="sell", optimize=False)
     use_sell_ichimoku_futur_cloud_signal = BooleanParameter(default=False, space="sell", optimize=False)
 
-    ml_signal_strength_threshold_min = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
-    ml_signal_strength_threshold_max = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
+    ml_hammer_signal_strength_threshold_min = DecimalParameter(0, 1, default=0.5, space="buy", optimize=False)
+    ml_hammer_signal_strength_threshold_max = DecimalParameter(0, 1, default=0.5, space="buy", optimize=False)
+    ml_engulfing_signal_strength_threshold_min = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
+    ml_engulfing_signal_strength_threshold_max = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
 
     use_custom_stoploss = use_custom_stoploss_param.value
 
@@ -343,22 +345,31 @@ class IchimokuRebondStrategy(IStrategy):
 
 
         # ML-based filtering of buy signals for hammer
-        rsi_tenkan_score = dataframe['rsi'].mul(dataframe['tenkan_proximity'])
-        kinjun_tenkan_score = dataframe['kinjun_proximity'].mul(dataframe['tenkan_proximity'])
-        atr_adx_score = dataframe['atr_strength'].mul(dataframe['adx'])
+        rsi_x_adx_score = dataframe['rsi'].mul(dataframe['adx'])
+        close_sup_sma200_x_kinjun_flat_score = dataframe['close_sup_sma200'].astype(int).mul(dataframe['kinjun_flat'].astype(int))
+        tenkan_kinjun_increasing_x_tenkan_proximity_score = dataframe['tenkan_kinjun_increasing'].astype(int).mul(dataframe['tenkan_proximity'])
+        rsi_x_atr_strength_score = dataframe['rsi'].mul(dataframe['atr_strength'])
+        adx_squared_score = dataframe['adx'] ** 2
+        atr_strength_x_kinjun_proximity_score = dataframe['atr_strength'].mul(dataframe['kinjun_proximity'])
 
         # Normalize scores before combining
         def min_max_normalize(series):
             return (series - series.min()) / (series.max() - series.min() + 1e-9)
 
-        rsi_tenkan_score_norm = min_max_normalize(rsi_tenkan_score)
-        kinjun_tenkan_score_norm = min_max_normalize(kinjun_tenkan_score)
-        atr_adx_score_norm = min_max_normalize(atr_adx_score)
+        rsi_x_adx_score_norm = min_max_normalize(rsi_x_adx_score)
+        close_sup_sma200_x_kinjun_flat_score_norm = min_max_normalize(close_sup_sma200_x_kinjun_flat_score)
+        tenkan_kinjun_increasing_x_tenkan_proximity_score_norm = min_max_normalize(tenkan_kinjun_increasing_x_tenkan_proximity_score)
+        rsi_x_atr_strength_score_norm = min_max_normalize(rsi_x_atr_strength_score)
+        adx_squared_score_norm = min_max_normalize(adx_squared_score)
+        atr_strength_x_kinjun_proximity_score_norm = min_max_normalize(atr_strength_x_kinjun_proximity_score)
 
         # Combined signal strength
         dataframe['ml_signal_strength_hammer'] = (
-            rsi_tenkan_score_norm + kinjun_tenkan_score_norm + atr_adx_score_norm
+            rsi_x_adx_score_norm + close_sup_sma200_x_kinjun_flat_score_norm + tenkan_kinjun_increasing_x_tenkan_proximity_score_norm
         ) / 3
+        dataframe['ml_signal_strength_engulfing'] = (
+            3 * rsi_x_atr_strength_score_norm + 2 * adx_squared_score_norm + atr_strength_x_kinjun_proximity_score_norm
+        ) / 6
        
 
 
@@ -646,35 +657,37 @@ class IchimokuRebondStrategy(IStrategy):
 
         if self.use_engulfing_entry.value:
             buy_engulfing_conditions = (
-                (dataframe['adx'] > self.entry_adx_threshold.value) &
-                # Conditions sur la bougie précédente (setup du rebond)
-                (dataframe['ichimoku-tenkan'] >= dataframe['ichimoku-kinjun']) &
-                # (rebond_open > rebond_kinjun) &
-                (
-                    ((dataframe['kinjun_proximity'] > 0) & (dataframe['kinjun_proximity'] < self.kinjun_proximity_threshold.value)) |
-                    ((dataframe['tenkan_proximity'] > 0) & (dataframe['tenkan_proximity'] < self.tenkan_proximity_threshold.value))
-                ) &
-                # la tenkan doit être ascendante et la kinjun plate ou ascendante
-                (
-                    (dataframe['ichimoku-tenkan'].shift(1) < dataframe['ichimoku-tenkan']) &
-                    (dataframe['ichimoku-kinjun'].shift(1) <= dataframe['ichimoku-kinjun'])
-                ) &
+                # (dataframe['adx'] > self.entry_adx_threshold.value) &
+                # # Conditions sur la bougie précédente (setup du rebond)
+                # (dataframe['ichimoku-tenkan'] >= dataframe['ichimoku-kinjun']) &
+                # # (rebond_open > rebond_kinjun) &
+                # (
+                #     ((dataframe['kinjun_proximity'] > 0) & (dataframe['kinjun_proximity'] < self.kinjun_proximity_threshold.value)) |
+                #     ((dataframe['tenkan_proximity'] > 0) & (dataframe['tenkan_proximity'] < self.tenkan_proximity_threshold.value))
+                # ) &
+                # # la tenkan doit être ascendante et la kinjun plate ou ascendante
+                # (
+                #     (dataframe['ichimoku-tenkan'].shift(1) < dataframe['ichimoku-tenkan']) &
+                #     (dataframe['ichimoku-kinjun'].shift(1) <= dataframe['ichimoku-kinjun'])
+                # ) &
                 (
                     # bullish engulfing
-                    ((dataframe['high'] - dataframe['close']) / (dataframe['high'] - dataframe['open']) < self.bullish_engulfing_upper_wick_threshold.value) &  # petite mèche haute
+                    # ((dataframe['high'] - dataframe['close']) / (dataframe['high'] - dataframe['open']) < self.bullish_engulfing_upper_wick_threshold.value) &  # petite mèche haute
                     (self.is_bullish_engulfing(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'], dataframe['low'], dataframe['high']))
-                ) &
-
-                (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
-                (dataframe['close'] > dataframe['ichimoku-spanA']) &
-                (dataframe['close'] > dataframe['ichimoku-spanB']) &
-                (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
-                (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
-                # (dataframe["close"] < (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * 2)) &
-                (dataframe['close_4h'] > dataframe['sma200_4h']) 
+                ) 
+                # &
+                # (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
+                # (dataframe['close'] > dataframe['ichimoku-spanA']) &
+                # (dataframe['close'] > dataframe['ichimoku-spanB']) &
+                # (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
+                # (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
+                # # (dataframe["close"] < (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * 2)) &
+                # (dataframe['close_4h'] > dataframe['sma200_4h']) 
                 # (dataframe['close_1d'] > dataframe[['ichimoku-spanA_1d','ichimoku-spanB_1d']].max(axis=1))
                 # (dataframe['rsi'] < self.rsi_entry_max.value) # & 
                 # (dataframe['rsi'] > self.rsi_entry_min.value) 
+                & (dataframe['ml_signal_strength_engulfing'] > self.ml_engulfing_signal_strength_threshold_min.value)
+                & (dataframe['ml_signal_strength_engulfing'] < self.ml_engulfing_signal_strength_threshold_max.value)
             )
             dataframe.loc[buy_engulfing_conditions, ['enter_long', 'enter_tag']] = (1, 'engulfing_rebond')
             self.log_entries(dataframe, buy_engulfing_conditions, metadata, "engulfing_rebond")
@@ -766,7 +779,7 @@ class IchimokuRebondStrategy(IStrategy):
         """
         recent_lows = (
             dataframe["low"]
-            .iloc[max(0, i - self.lookback_period_for_stoploss.value) : i]
+            .iloc[max(0, i - self.lookback_period_for_stoploss.value) : i+1]
             .dropna()
         )
         if len(recent_lows) > 0:
@@ -790,7 +803,7 @@ class IchimokuRebondStrategy(IStrategy):
         current_atr = dataframe["atr"].iloc[i] if not pd.isna(dataframe["atr"].iloc[i]) else 0
         
         if not pd.isna(stoploss_price_lower):
-            return stoploss_price_lower - self.atr_stoploss_multiplier.value * current_atr
+            return stoploss_price_lower - (self.atr_stoploss_multiplier.value * current_atr)
         return current_atr
 
     def calculate_stoploss_lower(self, pair: str, trade: Trade, current_rate: float) -> float:
