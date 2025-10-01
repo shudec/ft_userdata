@@ -101,6 +101,7 @@ class IchimokuRebondStrategy(IStrategy):
     use_sell_kinjun_signal = BooleanParameter(default=False, space="sell", optimize=False)
     use_sell_ichimoku_cloud_signal = BooleanParameter(default=True, space="sell", optimize=False)
     use_sell_ichimoku_futur_cloud_signal = BooleanParameter(default=False, space="sell", optimize=False)
+    trailing_custom_stop = BooleanParameter(default=True, space="sell", optimize=False)
 
     ml_hammer_signal_strength_threshold_min = DecimalParameter(0, 1, default=0.5, space="buy", optimize=False)
     ml_hammer_signal_strength_threshold_max = DecimalParameter(0, 1, default=0.5, space="buy", optimize=False)
@@ -884,26 +885,80 @@ class IchimokuRebondStrategy(IStrategy):
         **kwargs,
     ) -> float | None:
 
-        # 1. Si ce n'est pas le premier appel, ne pas toucher au stop-loss
-        # if hasattr(trade, 'stop_price_ratio'):
-        if self.use_custom_stoploss_param.value:
-            if trade.get_custom_data("stop_price_ratio") is not None:
-                return None
+        if not self.use_custom_stoploss_param.value:
+            return None
 
-            # Calculate stoploss ratio based on the selected method
+        entry_rate = trade.open_rate
+        
+        # 1. First call: calculate and store initial stoploss
+        initial_stoploss_ratio = trade.get_custom_data("initial_stoploss_ratio")
+        if initial_stoploss_ratio is None:
+            # Calculate initial stoploss ratio based on the selected method
             if self.use_custom_stoploss_type.value == 'lower':
-                ratio = self.calculate_stoploss_lower(pair, trade, current_rate)
+                initial_ratio = self.calculate_stoploss_lower(pair, trade, current_rate)
             elif self.use_custom_stoploss_type.value == 'atr':
-                ratio = self.calculate_stoploss_atr(pair, trade, current_rate)
+                initial_ratio = self.calculate_stoploss_atr(pair, trade, current_rate)
             elif self.use_custom_stoploss_type.value == 'lower_and_atr':
-                ratio = self.calculate_stoploss_lower_and_atr(pair, trade, current_rate)
+                initial_ratio = self.calculate_stoploss_lower_and_atr(pair, trade, current_rate)
             else:
-                ratio = 0
+                initial_ratio = self.stoploss  # Use default stoploss
 
-            trade.set_custom_data(key="stop_price_ratio", value=ratio)
-        else:
-            return 0
-        return ratio
+            trade.set_custom_data(key="initial_stoploss_ratio", value=initial_ratio)
+            trade.set_custom_data(key="initial_risk_amount", value=abs(initial_ratio) * entry_rate)
+            return initial_ratio
+
+        # 2. Subsequent calls: implement trailing stoploss based on R multiples
+        initial_risk_amount = trade.get_custom_data("initial_risk_amount")
+        if initial_risk_amount is None or initial_risk_amount <= 0:
+            return initial_stoploss_ratio
+
+        # Calculate profit in R multiples
+        profit_amount = current_rate - entry_rate
+        r_multiple = profit_amount / initial_risk_amount
+
+        # If we're in profit by at least 1R, start trailing
+        if r_multiple >= 1.0 and self.trailing_custom_stop.value:
+            # For each full R in profit, set stoploss at entry + (R_profit - 1) * R
+            full_r_profit = int(r_multiple)  # Get integer part (full R multiples)
+            trailing_r = full_r_profit - 1   # Stoploss at R-1
+            
+            if trailing_r > 0:
+                # Calculate new stoploss price: entry + trailing_r * initial_risk
+                new_stoploss_price = entry_rate + (trailing_r * initial_risk_amount)
+                
+                # Convert to ratio
+                new_stoploss_ratio = stoploss_from_absolute(
+                    new_stoploss_price,
+                    current_rate,
+                    is_short=trade.is_short,
+                    leverage=trade.leverage,
+                )
+                
+                # Only update if the new stoploss is better (higher) than current
+                current_stoploss_ratio = trade.get_custom_data("current_stoploss_ratio")
+                if current_stoploss_ratio is None or new_stoploss_ratio > current_stoploss_ratio:
+                    trade.set_custom_data(key="current_stoploss_ratio", value=new_stoploss_ratio)
+                    return new_stoploss_ratio
+                else:
+                    return current_stoploss_ratio
+            else:
+                # We're at 1R profit, keep stoploss at entry (breakeven)
+                breakeven_ratio = stoploss_from_absolute(
+                    entry_rate,
+                    current_rate,
+                    is_short=trade.is_short,
+                    leverage=trade.leverage,
+                )
+                
+                current_stoploss_ratio = trade.get_custom_data("current_stoploss_ratio")
+                if current_stoploss_ratio is None or breakeven_ratio > current_stoploss_ratio:
+                    trade.set_custom_data(key="current_stoploss_ratio", value=breakeven_ratio)
+                    return breakeven_ratio
+                else:
+                    return current_stoploss_ratio
+
+        # If not profitable enough yet, keep initial stoploss
+        return initial_stoploss_ratio
 
     def custom_stake_amount(
         self,
@@ -996,21 +1051,21 @@ class IchimokuRebondStrategy(IStrategy):
         # Calculer le risque initial (différence entre prix d'entrée et stoploss)
         entry_rate = trade.open_rate
 
-        # Estimer le niveau de stoploss actuel
-        # 2. Calcul du plus bas sur les 8 dernières bougies avant l'entrée
-        # lowest_price = self.calculate_lowest_price_last_n_candles(pair, self.lookback_period_for_pivots.value)
-        # ratio = stoploss_from_absolute(lowest_price, current_rate,
-        #                                is_short=trade.is_short, leverage=trade.leverage)
+        # Get the initial risk amount for take profit calculation
         if self.use_custom_stoploss_param.value:
-            ratio = trade.get_custom_data("stop_price_ratio")
+            # Use the stored initial risk amount from our new trailing stoploss system
+            risk = trade.get_custom_data("initial_risk_amount")
+            if risk is None:
+                # Fallback: calculate from initial stoploss ratio if available
+                initial_ratio = trade.get_custom_data("initial_stoploss_ratio")
+                if initial_ratio is not None:
+                    risk = abs(initial_ratio) * entry_rate
+                else:
+                    # Final fallback: use default stoploss
+                    risk = abs(self.stoploss) * entry_rate
         else:
-            ratio = -self.stoploss
-        # print(f"Custom sell check for {pair} at {current_time} with stored ratio {ratio}")
-        # Convertir en prix absolu
-        stoploss_rate = entry_rate * (1 - ratio)
-        # print(f"Custom sell check for {pair} at {current_time} with entry {entry_rate}, stoploss {stoploss_rate}, current rate {current_rate}, current profit {current_profit}")
-        # stoploss_rate = trade.get_custom_data("stop_price_ratio").value
-        risk = entry_rate - stoploss_rate
+            # Use default stoploss for risk calculation
+            risk = abs(self.stoploss) * entry_rate
 
         # Take profit à x fois le risque
         target_rate = entry_rate + (self.take_profit_multiplier.value * risk)

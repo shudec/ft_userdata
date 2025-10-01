@@ -48,13 +48,14 @@
       "lookback_period_for_stoploss": 6,
       "stoploss_margin": 0.998,
       "take_profit_multiplier": 2,
-      "use_custom_sell": true,
+      "use_custom_sell": false,
       "use_custom_stoploss_param": true,
       "use_custom_stoploss_type": "lower_and_atr",
-      "use_sell_ichimoku_cloud_signal": false,
+      "use_sell_ichimoku_cloud_signal": true,
       "use_sell_ichimoku_futur_cloud_signal": false,
       "use_sell_kinjun_signal": false,
-      "use_sell_signal_param": false
+      "use_sell_signal_param": true,
+      "trailing_custom_stop": false
     },
     "protection": {}
   },
