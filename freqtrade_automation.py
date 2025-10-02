@@ -133,7 +133,14 @@ class FreqtradeAutomation:
         
         # Add remaining arguments
         command.extend([
-            '--pairs', 'BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT',
+            '--pairs'
+        ])
+        
+        # Add pairs as separate arguments
+        pairs = self.config.get('pairs', ['BTC/USDT'])
+        command.extend(pairs)
+        
+        command.extend([
             '--timerange', self.config.get('hyperopt_timerange', '20170801-20191231'),
             '--random-state', str(self.config['random_state'])
         ])
@@ -357,15 +364,22 @@ class FreqtradeAutomation:
             '--timeframe', self.config['timeframe'],
             '--timeframe-detail', '5m',
             '--datadir', '/freqtrade/user_data/data/binance',
-            '--pairs', 'BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT',
+            '--pairs'
+        ]
+        
+        # Add pairs as separate arguments
+        pairs = self.config.get('pairs', ['BTC/USDT'])
+        command.extend(pairs)
+        
+        command.extend([
             '--timerange', self.config.get('backtest_timerange', '20220101-20221231'),
             '--export', 'trades'
-        ]
+        ])
         
         # Display backtesting configuration
         print(f"📊 Strategy: {self.config['strategy']}")
         print(f"📈 Timeframe: {self.config['timeframe']}")
-        print(f"💰 Pairs: BTC/USDT, ETH/USDT, LTC/USDT, XRP/USDT, BNB/USDT")
+        print(f"💰 Pairs: {', '.join(self.config.get('pairs', ['BTC/USDT']))}")
         print(f"📅 Date Range: {self.config.get('backtest_timerange', '20220101-20221231')}")
         
         # Store command for logging
@@ -963,6 +977,8 @@ def main():
     config = {
         'strategy': args.strategy,
         'timeframe': args.timeframe,
+        # 'pairs': ['BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT'],
+        'pairs': ['ADA/USDT','SOL/USDT','DOGE/USDT','TRX/USDT'],
         'hyperopt_loss': 'OnlyProfitHyperOptLoss',
         # 'hyperopt_loss': 'SharpeHyperOptLoss',
         # 'hyperopt_loss': 'SortinoHyperOptLoss',
@@ -976,6 +992,7 @@ def main():
         # 'backtest_timerange': '20220101-20241231',
         # 'backtest_timerange': '20170801-20231231'
         'backtest_timerange': '20220101-20251231'
+        # 'backtest_timerange': '20250101-20251231'
     }
     
     print("⚙️  CONFIGURATION:")

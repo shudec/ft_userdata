@@ -43,7 +43,11 @@
             "ETH/USDT",
             "LTC/USDT",
             "XRP/USDT",
-            "BNB/USDT"
+            "BNB/USDT",
+            "ADA/USDT",
+            "SOL/USDT",
+            "DOGE/USDT",
+            "TRX/USDT"
         ],
         "pair_blacklist": [
         
