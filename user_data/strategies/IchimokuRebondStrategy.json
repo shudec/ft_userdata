@@ -1,6 +1,7 @@
 {
   "strategy_name": "IchimokuRebondStrategy",
   "params": {
+    "roi": {},
     "stoploss": {
       "stoploss": -0.05
     },
@@ -25,12 +26,8 @@
       "hammer_head_threshold": 0.5,
       "hammer_strength_threshold": 0.02,
       "kinjun_proximity_threshold": 0.003,
-      "ml_engulfing_signal_strength_threshold_max": 0.132,
-      "ml_engulfing_signal_strength_threshold_min": 0.071,
       "ml_hammer_signal_strength_threshold_max": 0.431,
       "ml_hammer_signal_strength_threshold_min": 0.254,
-      "ml_strong_bullish_signal_strength_threshold_max": 0.54,
-      "ml_strong_bullish_signal_strength_threshold_min": 0.118,
       "rsi_entry_max": 70,
       "rsi_entry_min": 10,
       "strong_bullish_size_threshold": 2,
@@ -38,9 +35,11 @@
       "strong_bullish_upper_wick_threshold": 0.409,
       "tenkan_proximity_threshold": 0.003,
       "use_engulfing_entry": true,
-      "use_hammer_entry": true,
-      "use_strong_bullish_entry": true,
-      "volume_factor": 2
+      "use_hammer_entry": false,
+      "use_strong_bullish_entry": false,
+      "ml_engulfing_signal_strength_threshold_max": 0.132,
+      "ml_engulfing_signal_strength_threshold_min": 0.071,
+      "volume_factor": 0
     },
     "sell": {
       "atr_stoploss_multiplier": 0.5,
@@ -49,19 +48,17 @@
       "lookback_period_for_stoploss": 6,
       "stoploss_margin": 0.998,
       "take_profit_multiplier": 2,
-      "trailing_custom_stop": false,
       "use_custom_sell": true,
       "use_custom_stoploss_param": true,
       "use_custom_stoploss_type": "lower_and_atr",
-      "use_sell_ichimoku_cloud_signal": false,
-      "use_sell_ichimoku_futur_cloud_signal": true,
+      "use_sell_ichimoku_cloud_signal": true,
+      "use_sell_ichimoku_futur_cloud_signal": false,
       "use_sell_kinjun_signal": false,
-      "use_sell_signal_param": true
+      "use_sell_signal_param": true,
+      "trailing_custom_stop": false
     },
-    "protection": {},
-    "roi": {
-    }
+    "protection": {}
   },
   "ft_stratparam_v": 1,
-  "export_time": "2025-10-02 12:20:13.217172+00:00"
+  "export_time": "2025-10-01 15:58:06.813000+00:00"
 }
