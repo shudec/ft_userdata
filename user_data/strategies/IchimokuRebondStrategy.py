@@ -103,10 +103,12 @@ class IchimokuRebondStrategy(IStrategy):
     use_sell_ichimoku_futur_cloud_signal = BooleanParameter(default=False, space="sell", optimize=False)
     trailing_custom_stop = BooleanParameter(default=True, space="sell", optimize=False)
 
-    ml_hammer_signal_strength_threshold_min = DecimalParameter(0, 1, default=0.5, space="buy", optimize=False)
-    ml_hammer_signal_strength_threshold_max = DecimalParameter(0, 1, default=0.5, space="buy", optimize=False)
+    ml_hammer_signal_strength_threshold_min = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
+    ml_hammer_signal_strength_threshold_max = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
     ml_engulfing_signal_strength_threshold_min = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
     ml_engulfing_signal_strength_threshold_max = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
+    ml_strong_bullish_signal_strength_threshold_min = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
+    ml_strong_bullish_signal_strength_threshold_max = DecimalParameter(0, 1, default=0.5, space="buy", optimize=True)
 
     use_custom_stoploss = use_custom_stoploss_param.value
 
@@ -364,6 +366,8 @@ class IchimokuRebondStrategy(IStrategy):
         adx_squared_score_norm = min_max_normalize(adx_squared_score)
         atr_strength_x_kinjun_proximity_score_norm = min_max_normalize(atr_strength_x_kinjun_proximity_score)
 
+        
+
         # Combined signal strength
         dataframe['ml_signal_strength_hammer'] = (
             rsi_x_adx_score_norm + close_sup_sma200_x_kinjun_flat_score_norm + tenkan_kinjun_increasing_x_tenkan_proximity_score_norm
@@ -371,6 +375,9 @@ class IchimokuRebondStrategy(IStrategy):
         dataframe['ml_signal_strength_engulfing'] = (
             3 * rsi_x_atr_strength_score_norm + 2 * adx_squared_score_norm + atr_strength_x_kinjun_proximity_score_norm
         ) / 6
+        dataframe['ml_signal_strength_strong_bullish'] = (
+            2 * adx_squared_score_norm + rsi_x_adx_score_norm
+        ) / 3
        
 
 
@@ -696,35 +703,38 @@ class IchimokuRebondStrategy(IStrategy):
 
         if self.use_strong_bullish_entry.value:
             strong_bullish_conditions = (
-                (dataframe['adx'] > self.entry_adx_threshold.value) &
+                # (dataframe['adx'] > self.entry_adx_threshold.value) &
                 # Conditions sur la bougie précédente (setup du rebond)
-                (dataframe['ichimoku-tenkan'] >= dataframe['ichimoku-kinjun']) &
+                # (dataframe['ichimoku-tenkan'] >= dataframe['ichimoku-kinjun']) &
                 # (rebond_open > rebond_kinjun) &
-                (
-                    ((dataframe['kinjun_proximity'] > 0) & (dataframe['kinjun_proximity'] < self.kinjun_proximity_threshold.value)) |
-                    ((dataframe['tenkan_proximity'] > 0) & (dataframe['tenkan_proximity'] < self.tenkan_proximity_threshold.value))
-                ) &
-                # la tenkan doit être ascendante et la kinjun plate ou ascendante
-                (
-                    (dataframe['ichimoku-tenkan'].shift(1) < dataframe['ichimoku-tenkan']) &
-                    (dataframe['ichimoku-kinjun'].shift(1) <= dataframe['ichimoku-kinjun'])
-                ) &
+                # (
+                #     ((dataframe['kinjun_proximity'] > 0) & (dataframe['kinjun_proximity'] < self.kinjun_proximity_threshold.value)) |
+                #     ((dataframe['tenkan_proximity'] > 0) & (dataframe['tenkan_proximity'] < self.tenkan_proximity_threshold.value))
+                # ) &
+                # # la tenkan doit être ascendante et la kinjun plate ou ascendante
+                # (
+                #     (dataframe['ichimoku-tenkan'].shift(1) < dataframe['ichimoku-tenkan']) &
+                #     (dataframe['ichimoku-kinjun'].shift(1) <= dataframe['ichimoku-kinjun'])
+                # ) &
                 (
                     # bullish engulfing
-                    ((dataframe['high'] - dataframe['close']) / (dataframe['high'] - dataframe['open']) < self.strong_bullish_upper_wick_threshold.value) &  # petite mèche haute
+                    # ((dataframe['high'] - dataframe['close']) / (dataframe['high'] - dataframe['open']) < self.strong_bullish_upper_wick_threshold.value) &  # petite mèche haute
                     (self.is_strong_bullish_candle(dataframe['open'].shift(1), dataframe['close'].shift(1), dataframe['open'], dataframe['close'], dataframe['low'], dataframe['high']))
-                ) &
+                ) 
+                # &
 
-                (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
-                (dataframe['close'] > dataframe['ichimoku-spanA']) &
-                (dataframe['close'] > dataframe['ichimoku-spanB']) &
-                (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
-                (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
+                # (dataframe['ichimoku-spanA-futur'] > dataframe['ichimoku-spanB-futur']) &
+                # (dataframe['close'] > dataframe['ichimoku-spanA']) &
+                # (dataframe['close'] > dataframe['ichimoku-spanB']) &
+                # (dataframe['ichimoku-chiku-free'] if self.confirmation_chiku.value else True) &
+                # (rebond_volume > self.volume_factor.value * dataframe['volume_sma']) &
                 # (dataframe["close"] < (dataframe[['ichimoku-spanA-futur','ichimoku-spanB-futur']].max(axis=1) + dataframe['atr'] * 2)) &
-                (dataframe['close_4h'] > dataframe['sma200_4h']) 
+                # (dataframe['close_4h'] > dataframe['sma200_4h']) 
                 # (dataframe['close_1d'] > dataframe[['ichimoku-spanA_1d','ichimoku-spanB_1d']].max(axis=1))
                 # (dataframe['rsi'] < self.rsi_entry_max.value) # & 
                 # (dataframe['rsi'] > self.rsi_entry_min.value) 
+                & (dataframe['ml_signal_strength_engulfing'] > self.ml_strong_bullish_signal_strength_threshold_min.value)
+                & (dataframe['ml_signal_strength_engulfing'] < self.ml_strong_bullish_signal_strength_threshold_max.value)
             )
             dataframe.loc[strong_bullish_conditions, ['enter_long', 'enter_tag']] = (1, 'strong_bullish_rebond')
             self.log_entries(dataframe, strong_bullish_conditions, metadata, "strong_bullish_rebond")

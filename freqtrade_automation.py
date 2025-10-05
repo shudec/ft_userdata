@@ -133,7 +133,8 @@ class FreqtradeAutomation:
         
         # Add remaining arguments
         command.extend([
-            '--pairs', 'BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT',
+            '--pairs'
+        ] + self.config.get('pairs', ['BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT']) + [
             '--timerange', self.config.get('hyperopt_timerange', '20170801-20191231'),
             '--random-state', str(self.config['random_state'])
         ])
@@ -145,6 +146,8 @@ class FreqtradeAutomation:
         print(f"🔢 Epochs: {self.config.get('epochs', 100)}")
         print(f"🎲 Random State: {self.config['random_state']}")
         print(f"💹 Spaces: {self.config['spaces']}")
+        pairs_str = ", ".join(self.config.get('pairs', ['BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT']))
+        print(f"💰 Pairs: {pairs_str}")
         print(f"📅 Date Range: {self.config.get('hyperopt_timerange', '20170801-20191231')}")
         
         # Store command for logging
@@ -357,7 +360,8 @@ class FreqtradeAutomation:
             '--timeframe', self.config['timeframe'],
             '--timeframe-detail', '5m',
             '--datadir', '/freqtrade/user_data/data/binance',
-            '--pairs', 'BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT',
+            '--pairs'
+        ] + self.config.get('pairs', ['BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT']) + [
             '--timerange', self.config.get('backtest_timerange', '20220101-20221231'),
             '--export', 'trades'
         ]
@@ -365,7 +369,8 @@ class FreqtradeAutomation:
         # Display backtesting configuration
         print(f"📊 Strategy: {self.config['strategy']}")
         print(f"📈 Timeframe: {self.config['timeframe']}")
-        print(f"💰 Pairs: BTC/USDT, ETH/USDT, LTC/USDT, XRP/USDT, BNB/USDT")
+        pairs_str = ", ".join(self.config.get('pairs', ['BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT']))
+        print(f"💰 Pairs: {pairs_str}")
         print(f"📅 Date Range: {self.config.get('backtest_timerange', '20220101-20221231')}")
         
         # Store command for logging
@@ -963,6 +968,8 @@ def main():
     config = {
         'strategy': args.strategy,
         'timeframe': args.timeframe,
+        # 'pairs': ['BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT'],
+        'pairs': ['ADA/USDT', 'SOL/USDT', 'DOGE/USDT', 'TRX/USDT'],
         'hyperopt_loss': 'OnlyProfitHyperOptLoss',
         # 'hyperopt_loss': 'SharpeHyperOptLoss',
         # 'hyperopt_loss': 'SortinoHyperOptLoss',

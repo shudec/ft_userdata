@@ -7,6 +7,7 @@ import pandas as pd
 from datetime import datetime, timedelta, timezone
 from pandas import DataFrame
 from typing import Optional, Union
+from BaseStrategy import BaseStrategy
 
 from freqtrade.strategy import (
     IStrategy,
@@ -37,7 +38,7 @@ from technical import qtpylib
 
 
 # This class is a sample. Feel free to customize it.
-class MACDStrategy(IStrategy):
+class MACDStrategy(BaseStrategy):
     """
     This is a sample strategy to inspire you.
     More information in https://www.freqtrade.io/en/latest/strategy-customization/
@@ -94,15 +95,6 @@ class MACDStrategy(IStrategy):
 
 
     # Hyperoptable parameters
-    # buy_rsi = IntParameter(low=1, high=50, default=30, space="buy", optimize=True, load=True)
-    take_profit = CategoricalParameter([1, 1.5, 2.0, 2.5, 3.0], default=1, space="sell", optimize=True, load=True)
-    use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=True, load=True)
-    use_sar_trailing_stop = BooleanParameter(default=False, space="sell", optimize=True, load=True)
-    use_atr_trailing_stop = BooleanParameter(default=False, space="sell", optimize=True, load=True)
-    atr_factor = CategoricalParameter([1.5, 2.0, 2.5, 3.0], default=2.0, space="sell", optimize=True, load=True)
-
-
-    use_custom_stoploss = use_custom_stoploss_param.value
 
     # Number of candles the strategy requires before producing valid signals
     startup_candle_count: int = 200
@@ -120,8 +112,11 @@ class MACDStrategy(IStrategy):
 
     plot_config = {
         "main_plot": {
-            "ema200": {},
+            "sma200": {},
             "stoploss": {"color": "red"},
+            "custom_exit_signal": {
+                "color": "orange",
+            },
         },
         "subplots": {
             "MACD": {
@@ -215,7 +210,7 @@ class MACDStrategy(IStrategy):
 
         #stoploss
         # dataframe['stoploss'] = dataframe['close'] - (dataframe['atr'] * 2)
-        dataframe['stoploss'] = dataframe['low'].rolling(window=8).min()
+        # dataframe['stoploss'] = dataframe['low'].rolling(window=8).min()
 
         # # Inverse Fisher transform on RSI: values [-1.0, 1.0] (https://goo.gl/2JGGoy)
         # rsi = 0.1 * (dataframe['rsi'] - 50)
@@ -301,7 +296,7 @@ class MACDStrategy(IStrategy):
         # dataframe['sma100'] = ta.SMA(dataframe, timeperiod=100)
 
         # Parabolic SAR
-        dataframe["sar"] = ta.SAR(dataframe)
+        # dataframe["sar"] = ta.SAR(dataframe)
 
         # TEMA - Triple Exponential Moving Average
         # dataframe["tema"] = ta.TEMA(dataframe, timeperiod=9)
@@ -389,7 +384,8 @@ class MACDStrategy(IStrategy):
         """
         dataframe.loc[
             (
-                (qtpylib.crossed_above(dataframe["macdsignal"], dataframe["macd"]))
+                (qtpylib.crossed_above(dataframe["macd"], dataframe["macdsignal"]))
+                & (dataframe["macdsignal"] < 0)  # MACD signal below zero
                 & (dataframe["close"] > dataframe["sma200"])  # Guard: price above SMA200
                 & (dataframe["volume"] > 0)  # Make sure Volume is not 0
             ),
@@ -405,125 +401,15 @@ class MACDStrategy(IStrategy):
         :param metadata: Additional information, like the currently traded pair
         :return: DataFrame with exit columns populated
         """
-
-        dataframe.loc[
-            (
-                (qtpylib.crossed_below(dataframe["macdsignal"], dataframe["macd"])
-                | (dataframe["close"] < dataframe["ema200"]))  # Guard: price below EMA200
-                & (dataframe["volume"] > 0)  # Make sure Volume is not 0
-            ),
-            "exit_long",
-        ] = 1
+        if self.use_sell_signal_param.value:
+            dataframe.loc[
+                (
+                    (qtpylib.crossed_below(dataframe["macd"], dataframe["macdsignal"])
+                    & (dataframe["macdsignal"] > 0)  # MACD signal below zero
+                    | (dataframe["close"] < dataframe["sma200"]))  # Guard: price below SMA200
+                    & (dataframe["volume"] > 0)  # Make sure Volume is not 0
+                ),
+                "exit_long",
+            ] = 1
 
         return dataframe
-
-    def order_filled(self, pair: str, trade: Trade, order: Order, current_time: datetime, **kwargs) -> None:
-        """
-        Called right after an order fills. 
-        Will be called for all order types (entry, exit, stoploss, position adjustment).
-        :param pair: Pair for trade
-        :param trade: trade object.
-        :param order: Order object.
-        :param current_time: datetime object, containing the current datetime
-        :param **kwargs: Ensure to keep this here so updates to this won't break your strategy.
-        """
-        # Obtain pair dataframe (just to show how to access it)
-        dataframe, _ = self.dp.get_analyzed_dataframe(trade.pair, self.timeframe)
-        last_candle = dataframe.iloc[-1].squeeze()
-
-        if (trade.nr_of_successful_entries == 1) and (order.ft_order_side == trade.entry_side):
-            # calculate the lowest low from last 10 candles and set the stoploss to that value
-            last_10_candles = dataframe.tail(10)
-            stoploss_price = last_10_candles['low'].min()
-            trade.set_custom_data(key="stoploss", value=(last_candle["close"]-stoploss_price)/last_candle["close"])
-            # trade.set_custom_data(key="stoploss", value=stoploss_price)
-
-        return None
-
-    def calculate_lowest_price_last_n_candles(self, pair: str, n_candles: int) -> float:
-        """
-        Calculate the lowest price from the last n candles
-        :param pair: Trading pair
-        :param n_candles: Number of candles to look back
-        :return: Lowest price from the last n candles
-        """
-        dataframe, _ = self.dp.get_analyzed_dataframe(pair=pair, timeframe=self.timeframe)
-        last_n_lows = dataframe['low'].iloc[-n_candles:]
-        lowest_price = last_n_lows.min()
-        return lowest_price
-
-
-    # Custom stoploss: Set the stoploss based on the lowest low of the last 8 candles before entry
-    def custom_stoploss(self, pair: str, trade: Trade, current_time: datetime,
-                        current_rate: float, current_profit: float, after_fill: bool, **kwargs) -> float | None:
-
-        # 1. Si ce n'est pas le premier appel, ne pas toucher au stop-loss
-        # if hasattr(trade, 'stop_price_ratio'):
-        if trade.get_custom_data("stop_price_ratio") is not None:
-            return None
-
-        # 2. Calcul du plus bas sur les 8 dernières bougies avant l'entrée
-        lowest_price = self.calculate_lowest_price_last_n_candles(pair, 8)
-
-        # 3. Convertir en ratio relatif au prix courant
-        ratio = stoploss_from_absolute(lowest_price, current_rate,
-                                       is_short=trade.is_short, leverage=trade.leverage)
-
-        # 4. Stocker pour ne pas changer ensuite
-        # setattr(trade, 'stop_price_ratio', ratio)
-        trade.set_custom_data(key="stop_price_ratio", value=ratio)
-        trade.set_custom_data(key="stop_price", value=ratio)
-
-        print(f"Custom stoploss for {pair} at {current_time} is {current_rate - (ratio * current_rate)}({ratio}), current profit {current_profit}, lowest price {lowest_price}, leverage {trade.leverage}")
-
-        return ratio
-    
-
-
-    def custom_stake_amount(self, pair: str, current_time: datetime, current_rate: float,
-                            proposed_stake: float, min_stake: float, max_stake: float,
-                            **kwargs) -> float:
-        dataframe, _ = self.dp.get_analyzed_dataframe(pair=pair, timeframe=self.timeframe)
-        # current_candle = dataframe.iloc[-1].squeeze()
-
-        stoploss_price = self.calculate_lowest_price_last_n_candles(pair, 8)
-        stop_distance = current_rate - stoploss_price
-        K = max_stake
-        stake = (K / 100) / stop_distance * current_rate
-
-        if stake > max_stake:
-            return max_stake
-
-        return stake
-
-
-    def getNbR(self, pair: str, trade: Trade, current_rate: float) -> float:
-        r = trade.open_rate - trade.stop_loss
-        if r != 0:
-            return (current_rate - trade.open_rate) / r
-        else:
-            return 0
-
-
-    def custom_sell(self, pair: str, trade: Trade, current_time: 'datetime', current_rate: float,
-                    current_profit: float, **kwargs):
-        # dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
-        # last_candle = dataframe.iloc[-1].squeeze()
-        # previous_candle = dataframe.iloc[-2].squeeze()
-        # if current_profit > 0.05:
-        if self.getNbR(pair, trade, current_rate) >= self.take_profit.value:
-            return f'take-profit-{self.take_profit.value}R'
-        
-        if self.use_sar_trailing_stop.value:
-            dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
-            last_candle = dataframe.iloc[-1].squeeze()
-            if last_candle['sar'] > last_candle['close']:
-                return 'sar-trailing-stop'
-            
-        if self.use_atr_trailing_stop.value:
-            dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
-            last_candle = dataframe.iloc[-1].squeeze()
-            before_last_candle = dataframe.iloc[-2].squeeze()
-            if last_candle['close'] < before_last_candle['close'] - (self.atr_factor.value * last_candle['atr']):
-                return 'atr-trailing-stop'
-

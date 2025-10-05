@@ -14,16 +14,26 @@
     "max_open_trades": {
       "max_open_trades": 3
     },
-    "buy": {},
+    "buy": {
+      "entry_adx_threshold": 5,
+      "rsi_entry_max": 70,
+      "rsi_entry_min": 10,
+      "volume_factor": 1
+    },
     "sell": {
-      "atr_factor": 2.5,
-      "take_profit": 2.5,
-      "use_atr_trailing_stop": true,
-      "use_custom_stoploss_param": false,
-      "use_sar_trailing_stop": false
+      "atr_stoploss_multiplier": 1.5,
+      "custom_sell_atr_factor": 4.5,
+      "lookback_period_for_stoploss": 5,
+      "stoploss_margin": 0.999,
+      "take_profit_multiplier": 2,
+      "trailing_custom_stop": true,
+      "use_custom_sell": true,
+      "use_custom_stoploss_param": true,
+      "use_custom_stoploss_type": "lower_and_atr",
+      "use_sell_signal_param": false
     },
     "protection": {}
   },
   "ft_stratparam_v": 1,
-  "export_time": "2025-09-03 14:52:59.512105+00:00"
+  "export_time": "2025-10-04 20:24:59.266458+00:00"
 }
