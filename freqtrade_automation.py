@@ -969,7 +969,7 @@ def main():
         'strategy': args.strategy,
         'timeframe': args.timeframe,
         # 'pairs': ['BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT'],
-        'pairs': ['ADA/USDT', 'SOL/USDT', 'DOGE/USDT', 'TRX/USDT'],
+        'pairs': ['ADA/USDT', 'SOL/USDT', 'DOGE/USDT', 'BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT', 'BNB/USDT'],
         'hyperopt_loss': 'OnlyProfitHyperOptLoss',
         # 'hyperopt_loss': 'SharpeHyperOptLoss',
         # 'hyperopt_loss': 'SortinoHyperOptLoss',
@@ -982,7 +982,7 @@ def main():
         'hyperopt_timerange': '20220101-20231231',
         # 'backtest_timerange': '20220101-20241231',
         # 'backtest_timerange': '20170801-20231231'
-        'backtest_timerange': '20220101-20251231'
+        'backtest_timerange': '20250101-20251231'
     }
     
     print("⚙️  CONFIGURATION:")

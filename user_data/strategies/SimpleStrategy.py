@@ -83,7 +83,7 @@ class SimpleStrategy(BaseStrategy):
     # trailing_stop_positive_offset = 0.0  # Disabled / not configured
 
     # Optimal timeframe for the strategy.
-    timeframe = "1h"
+    timeframe = "15m"
 
     # Run "populate_indicators()" only for new candle.
     process_only_new_candles = True
@@ -113,12 +113,15 @@ class SimpleStrategy(BaseStrategy):
     plot_config = {
         "main_plot": {
             "sma200": {},
-            "stoploss": {"color": "red"},
             "custom_exit_signal": {
                 "color": "orange",
             },
             "ema5": {"color": "blue"},
             "ema10": {"color": "cyan"},
+            "stoploss_prices": {
+                "color": "grey",
+                "linestyle": "dotted",
+            },
         },
         "subplots": {
             "MACD": {
@@ -391,9 +394,10 @@ class SimpleStrategy(BaseStrategy):
         dataframe.loc[
             (
                 (qtpylib.crossed_above(dataframe["ema5"], dataframe["ema10"]))
-                & (dataframe["macd"] > dataframe["macdsignal"]) 
+                # & (dataframe["macd"] > dataframe["macdsignal"]) 
                 & (dataframe["slowk"] > dataframe["slowd"])
                 & (dataframe["rsi"] < 70)
+                & (dataframe["rsi"] > 50)
                 & (dataframe["close"] > dataframe["ema10"])  # Guard: price above EMA10
                 & (dataframe["close"] > dataframe["ema5"])  # Guard: price above EMA5
                 & (dataframe["volume"] > 0)  # Make sure Volume is not 0
@@ -413,12 +417,14 @@ class SimpleStrategy(BaseStrategy):
         if self.use_sell_signal_param.value:
             dataframe.loc[
                 (
-                    (qtpylib.crossed_below(dataframe["ema5"], dataframe["ema10"]))
-                    & (dataframe["macd"] < dataframe["macdsignal"])
-                    & (dataframe["slowk"] < dataframe["slowd"])
-                    & (dataframe["rsi"] > 30)
-                    & (dataframe["close"] < dataframe["ema10"]) # Guard: price above EMA10
-                    & (dataframe["close"] < dataframe["ema5"])  # Guard: price above EMA5
+                    (
+                        # (qtpylib.crossed_below(dataframe["ema5"], dataframe["ema10"]))
+                    # | (dataframe["macd"] < dataframe["macdsignal"])
+                    # | (dataframe["slowk"] < dataframe["slowd"])
+                    (dataframe["rsi"] < 50)
+                    # | (dataframe["close"] < dataframe["ema10"]) # Guard: price above EMA10
+                    # | (dataframe["close"] < dataframe["ema5"]))  # Guard: price above EMA5
+                    )
                     & (dataframe["volume"] > 0)  # Make sure Volume is not 0
                 ),
                 "exit_long",
