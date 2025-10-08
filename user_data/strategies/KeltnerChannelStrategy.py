@@ -38,7 +38,7 @@ from technical import qtpylib
 
 
 # This class is a sample. Feel free to customize it.
-class SimpleStrategy(BaseStrategy):
+class KeltnerChannelStrategy(BaseStrategy):
     """
     This is a sample strategy to inspire you.
     More information in https://www.freqtrade.io/en/latest/strategy-customization/
@@ -89,12 +89,14 @@ class SimpleStrategy(BaseStrategy):
     process_only_new_candles = True
 
     # These values can be overridden in the config.
-    use_exit_signal = True
+    use_exit_signal = False
     exit_profit_only = False
     ignore_roi_if_entry_signal = False
 
 
     # Hyperoptable parameters
+    adx_entry_param = CategoricalParameter([20, 30, 40, 50], default=20, space="buy", optimize=True, load=True)
+    chop_entry_param = CategoricalParameter([20, 30, 40, 50], default=40, space="buy", optimize=True, load=True)
 
     # Number of candles the strategy requires before producing valid signals
     startup_candle_count: int = 200
@@ -112,28 +114,19 @@ class SimpleStrategy(BaseStrategy):
 
     plot_config = {
         "main_plot": {
-            "sma200": {},
-            "custom_exit_signal": {
-                "color": "orange",
-            },
-            "sma5": {"color": "blue"},
-            "sma10": {"color": "cyan"},
+            "kc_upperband": {"color": "grey"},
+            "kc_lowerband": {"color": "grey"},
             "stoploss_prices": {
-                "color": "grey",
+                "color": "red",
                 "linestyle": "dotted",
             },
         },
         "subplots": {
-            "MACD": {
-                "macd": {"color": "blue"},
-                "macdsignal": {"color": "orange"},
+            "chop": {
+                "chop": {"color": "blue"},
             },
-            "RSI": {
-                "rsi": {"color": "red"},
-            },
-            "Stochastic": {
-                "slowk": {"color": "blue"},
-                "slowd": {"color": "orange"},
+            "adx": {
+                "adx": {"color": "red"},
             },
         },
     }
@@ -167,13 +160,16 @@ class SimpleStrategy(BaseStrategy):
         # ------------------------------------
 
         # SMA 200
-        dataframe["sma200"] = ta.SMA(dataframe, timeperiod=200)
+        # dataframe["sma200"] = ta.SMA(dataframe, timeperiod=200)
 
         # EMA 200
-        dataframe["ema200"] = ta.EMA(dataframe, timeperiod=200)
+        # dataframe["ema200"] = ta.EMA(dataframe, timeperiod=200)
 
         # ADX
-        # dataframe["adx"] = ta.ADX(dataframe)
+        dataframe["adx"] = ta.ADX(dataframe)
+
+        # Choppiness Index
+        dataframe["chop"] = self.choppiness_index(dataframe, n=14)
 
         # # Plus Directional Indicator / Movement
         # dataframe['plus_dm'] = ta.PLUS_DM(dataframe)
@@ -192,18 +188,18 @@ class SimpleStrategy(BaseStrategy):
         # # Awesome Oscillator
         # dataframe['ao'] = qtpylib.awesome_oscillator(dataframe)
 
-        # # Keltner Channel
-        # keltner = qtpylib.keltner_channel(dataframe)
-        # dataframe["kc_upperband"] = keltner["upper"]
-        # dataframe["kc_lowerband"] = keltner["lower"]
-        # dataframe["kc_middleband"] = keltner["mid"]
-        # dataframe["kc_percent"] = (
-        #     (dataframe["close"] - dataframe["kc_lowerband"]) /
-        #     (dataframe["kc_upperband"] - dataframe["kc_lowerband"])
-        # )
-        # dataframe["kc_width"] = (
-        #     (dataframe["kc_upperband"] - dataframe["kc_lowerband"]) / dataframe["kc_middleband"]
-        # )
+        # Keltner Channel
+        keltner = qtpylib.keltner_channel(dataframe)
+        dataframe["kc_upperband"] = keltner["upper"]
+        dataframe["kc_lowerband"] = keltner["lower"]
+        dataframe["kc_middleband"] = keltner["mid"]
+        dataframe["kc_percent"] = (
+            (dataframe["close"] - dataframe["kc_lowerband"]) /
+            (dataframe["kc_upperband"] - dataframe["kc_lowerband"])
+        )
+        dataframe["kc_width"] = (
+            (dataframe["kc_upperband"] - dataframe["kc_lowerband"]) / dataframe["kc_middleband"]
+        )
 
         # # Ultimate Oscillator
         # dataframe['uo'] = ta.ULTOSC(dataframe)
@@ -212,7 +208,7 @@ class SimpleStrategy(BaseStrategy):
         # dataframe['cci'] = ta.CCI(dataframe)
 
         # RSI
-        dataframe["rsi"] = ta.RSI(dataframe)
+        # dataframe["rsi"] = ta.RSI(dataframe)
 
         #ATR
         dataframe['atr'] = ta.ATR(dataframe)
@@ -229,9 +225,9 @@ class SimpleStrategy(BaseStrategy):
         # dataframe['fisher_rsi_norma'] = 50 * (dataframe['fisher_rsi'] + 1)
 
         # Stochastic Slow
-        stoch = ta.STOCH(dataframe)
-        dataframe['slowd'] = stoch['slowd']
-        dataframe['slowk'] = stoch['slowk']
+        # stoch = ta.STOCH(dataframe)
+        # dataframe['slowd'] = stoch['slowd']
+        # dataframe['slowk'] = stoch['slowk']
 
         # Stochastic Fast
         # stoch_fast = ta.STOCHF(dataframe)
@@ -246,10 +242,10 @@ class SimpleStrategy(BaseStrategy):
         # dataframe['fastk_rsi'] = stoch_rsi['fastk']
 
         # MACD
-        macd = ta.MACD(dataframe)
-        dataframe["macd"] = macd["macd"]
-        dataframe["macdsignal"] = macd["macdsignal"]
-        dataframe["macdhist"] = macd["macdhist"]
+        # macd = ta.MACD(dataframe)
+        # dataframe["macd"] = macd["macd"]
+        # dataframe["macdsignal"] = macd["macdsignal"]
+        # dataframe["macdhist"] = macd["macdhist"]
 
         # MFI
         # dataframe["mfi"] = ta.MFI(dataframe)
@@ -290,16 +286,16 @@ class SimpleStrategy(BaseStrategy):
 
         # # EMA - Exponential Moving Average
         # dataframe['ema3'] = ta.EMA(dataframe, timeperiod=3)
-        dataframe['ema5'] = ta.EMA(dataframe, timeperiod=5)
-        dataframe['ema10'] = ta.EMA(dataframe, timeperiod=10)
+        # dataframe['ema5'] = ta.EMA(dataframe, timeperiod=5)
+        # dataframe['ema10'] = ta.EMA(dataframe, timeperiod=10)
         # dataframe['ema21'] = ta.EMA(dataframe, timeperiod=21)
         # dataframe['ema50'] = ta.EMA(dataframe, timeperiod=50)
         # dataframe['ema100'] = ta.EMA(dataframe, timeperiod=100)
 
         # # SMA - Simple Moving Average
         # dataframe['sma3'] = ta.SMA(dataframe, timeperiod=3)
-        dataframe['sma5'] = ta.SMA(dataframe, timeperiod=5)
-        dataframe['sma10'] = ta.SMA(dataframe, timeperiod=10)
+        # dataframe['sma5'] = ta.SMA(dataframe, timeperiod=5)
+        # dataframe['sma10'] = ta.SMA(dataframe, timeperiod=10)
         # dataframe['sma21'] = ta.SMA(dataframe, timeperiod=21)
         # dataframe['sma50'] = ta.SMA(dataframe, timeperiod=50)
         # dataframe['sma100'] = ta.SMA(dataframe, timeperiod=100)
@@ -397,6 +393,8 @@ class SimpleStrategy(BaseStrategy):
                         stoploss_price = self._calculate_stoploss_price_atr(dataframe, i)
                     elif self.use_custom_stoploss_type.value == 'lower_and_atr':
                         stoploss_price = self._calculate_stoploss_price_lower_and_atr(dataframe, i)
+                    elif self.use_custom_stoploss_type.value == 'candle_close_atr':
+                        stoploss_price = self._calculate_stoploss_price_candle_close_atr(dataframe, i)
                     else:
                         # Default fallback
                         stoploss_price = dataframe["close"].iloc[i] * (1 + self.stoploss)
@@ -408,6 +406,26 @@ class SimpleStrategy(BaseStrategy):
             dataframe["stoploss_prices"] = dataframe["close"] * (1 + self.stoploss)
 
         return dataframe
+    
+    
+
+    def true_range(self, df):
+        # df has columns: high, low, close
+        tr1 = df['high'] - df['low']
+        tr2 = (df['high'] - df['close'].shift()).abs()
+        tr3 = (df['low'] - df['close'].shift()).abs()
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        return tr
+
+    def choppiness_index(self, df, n=14):
+        tr = self.true_range(df)
+        sum_tr = tr.rolling(n).sum()
+        high_n = df['high'].rolling(n).max()
+        low_n = df['low'].rolling(n).min()
+        numerator = sum_tr / (high_n - low_n)
+        chop = 100 * (np.log10(numerator) / np.log10(n))
+        return chop
+
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
@@ -418,18 +436,9 @@ class SimpleStrategy(BaseStrategy):
         """
         dataframe.loc[
             (
-                # (qtpylib.crossed_above(dataframe["ema5"], dataframe["ema10"]))
-                (dataframe["sma5"] > dataframe["sma10"])
-                # & (dataframe["macd"] > dataframe["macdsignal"]) 
-                & (dataframe["slowk"] > dataframe["slowd"])
-                & (dataframe["rsi"] < 70)
-                & (dataframe["rsi"] > 50)
-                & (dataframe["close"] > dataframe["sma10"])  # Guard: price above SMA10
-                & (dataframe["close"] > dataframe["sma5"])  # Guard: price above SMA5
-                & (dataframe["close"] > dataframe["sma200"])  # Guard: price above SMA200
-                & (dataframe["open"] < dataframe["close"])  # Bull candle
-                # & (dataframe["open"] < dataframe["sma5"])  # Bull candle
-                # & (dataframe["open"] < dataframe["sma10"])  # Bull candle
+                (dataframe["close"] > dataframe["kc_upperband"])  # Price above upper Keltner Channel
+                & (dataframe["adx"] > self.adx_entry_param.value)  # ADX trend strength
+                & (dataframe["chop"] < self.chop_entry_param.value)  # Choppiness Index
                 & (dataframe["volume"] > 0)  # Make sure Volume is not 0
             ),
             "enter_long",
@@ -444,20 +453,20 @@ class SimpleStrategy(BaseStrategy):
         :param metadata: Additional information, like the currently traded pair
         :return: DataFrame with exit columns populated
         """
-        if self.use_sell_signal_param.value:
-            dataframe.loc[
-                (
-                    (
-                        # (qtpylib.crossed_below(dataframe["ema5"], dataframe["ema10"]))
-                    # | (dataframe["macd"] < dataframe["macdsignal"])
-                    # | (dataframe["slowk"] < dataframe["slowd"])
-                    # (dataframe["rsi"] < 50)
-                    (dataframe["close"] < dataframe["sma10"]) # Guard: price above SMA10
-                    & (dataframe["close"] < dataframe["sma5"])  # Guard: price above SMA5
-                    )
-                    & (dataframe["volume"] > 0)  # Make sure Volume is not 0
-                ),
-                "exit_long",
-            ] = 1
+        # if self.use_sell_signal_param.value:
+        #     dataframe.loc[
+        #         (
+        #             (
+        #                 # (qtpylib.crossed_below(dataframe["ema5"], dataframe["ema10"]))
+        #             # | (dataframe["macd"] < dataframe["macdsignal"])
+        #             # | (dataframe["slowk"] < dataframe["slowd"])
+        #             # (dataframe["rsi"] < 50)
+        #             (dataframe["close"] < dataframe["sma10"]) # Guard: price above SMA10
+        #             & (dataframe["close"] < dataframe["sma5"])  # Guard: price above SMA5
+        #             )
+        #             & (dataframe["volume"] > 0)  # Make sure Volume is not 0
+        #         ),
+        #         "exit_long",
+        #     ] = 1
 
         return dataframe

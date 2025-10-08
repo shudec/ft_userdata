@@ -58,7 +58,7 @@ class BaseStrategy(IStrategy):
     # Hyperopt parameters
     rsi_entry_max = IntParameter(50, 100, default=70, space="buy", optimize=False)
     rsi_entry_min = IntParameter(0, 50, default=10, space="buy", optimize=False)
-    volume_factor = CategoricalParameter([0, 0.25, 0.5, 1, 1.5, 2, 2.5, 3], default=0.5, space="buy", optimize=True)
+    volume_factor = CategoricalParameter([0, 0.25, 0.5, 1, 1.5, 2, 2.5, 3], default=0.5, space="buy", optimize=False)
     entry_adx_threshold = CategoricalParameter([0, 5, 10, 15, 20, 25, 30, 40, 50], default=5, space="buy", optimize=False)
 
     use_custom_stoploss_param = BooleanParameter(default=True, space="sell", optimize=False)
@@ -70,7 +70,7 @@ class BaseStrategy(IStrategy):
     use_sell_signal_param = BooleanParameter(default=True, space="sell", optimize=False)
     atr_stoploss_multiplier = CategoricalParameter([0.5, 1, 1.5, 2, 2.5, 3], default=1.5, space="sell", optimize=False)
     custom_sell_atr_factor = CategoricalParameter([1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6], default=4.5, space="sell", optimize=False)
-    trailing_custom_stop = BooleanParameter(default=True, space="sell", optimize=False)
+    # trailing_custom_stop = BooleanParameter(default=True, space="sell", optimize=False)
 
     use_custom_stoploss = use_custom_stoploss_param.value
 
@@ -152,6 +152,8 @@ class BaseStrategy(IStrategy):
                         stoploss_price = self._calculate_stoploss_price_atr(dataframe, i)
                     elif self.use_custom_stoploss_type.value == 'lower_and_atr':
                         stoploss_price = self._calculate_stoploss_price_lower_and_atr(dataframe, i)
+                    elif self.use_custom_stoploss_type.value == 'candle_close_atr':
+                        stoploss_price = self._calculate_stoploss_price_candle_close_atr(dataframe, i)
                     else:
                         # Default fallback
                         stoploss_price = dataframe["close"].iloc[i] * (1 + self.stoploss)
@@ -166,7 +168,7 @@ class BaseStrategy(IStrategy):
         dataframe['adx'] = ta.ADX(dataframe, timeperiod=14)
 
         return dataframe
-
+    
     def log_entries(self, dataframe: DataFrame, condition, metadata: dict, tag: str):
         """
         Sauvegarde les indicateurs pour les lignes où condition est vraie
@@ -247,6 +249,16 @@ class BaseStrategy(IStrategy):
             return stoploss_price_lower - (self.atr_stoploss_multiplier.value * current_atr)
         return current_atr
 
+    def _calculate_stoploss_price_candle_close_atr(self, dataframe: DataFrame, i: int) -> float:
+        """
+        Helper method to calculate stoploss price based on candle close - ATR
+        """
+        if len(dataframe) == 0:
+            return np.nan
+        current_close = dataframe["close"].iloc[i]
+        current_atr = dataframe["atr"].iloc[i] if not pd.isna(dataframe["atr"].iloc[i]) else 0
+        return current_close - (self.atr_stoploss_multiplier.value * current_atr)
+
     def calculate_stoploss_lower(self, pair: str, trade: Trade, current_rate: float) -> float:
         """
         Calculate stoploss based on the lowest price of the last n candles
@@ -313,6 +325,28 @@ class BaseStrategy(IStrategy):
             leverage=trade.leverage,
         )
         return ratio
+    
+    def calculate_stoploss_candle_close_atr(self, pair: str, trade: Trade, current_rate: float) -> float:
+        """
+        Calculate stoploss based on candle close - ATR
+        
+        :param pair: Trading pair
+        :param trade: Current trade
+        :param current_rate: Current market rate
+        :return: Stoploss ratio
+        """
+        # Get dataframe and use helper method for consistency
+        dataframe, _ = self.dp.get_analyzed_dataframe(pair=pair, timeframe=self.timeframe)
+        last_candle_index = len(dataframe) - 1
+        lowest_price = self._calculate_stoploss_price_candle_close_atr(dataframe, last_candle_index)
+
+        ratio = stoploss_from_absolute(
+            lowest_price,
+            current_rate,
+            is_short=trade.is_short,
+            leverage=trade.leverage,
+        )
+        return ratio
 
     def custom_stoploss(
         self,
@@ -338,6 +372,8 @@ class BaseStrategy(IStrategy):
                 ratio = self.calculate_stoploss_atr(pair, trade, current_rate)
             elif self.use_custom_stoploss_type.value == 'lower_and_atr':
                 ratio = self.calculate_stoploss_lower_and_atr(pair, trade, current_rate)
+            elif self.use_custom_stoploss_type.value == 'candle_close_atr':
+                ratio = self.calculate_stoploss_candle_close_atr(pair, trade, current_rate)
             else:
                 ratio = 0
 
@@ -378,6 +414,9 @@ class BaseStrategy(IStrategy):
                 # Use the last candle index for combined calculation
                 last_candle_index = len(dataframe) - 1
                 stoploss_price = self._calculate_stoploss_price_lower_and_atr(dataframe, last_candle_index)
+            elif self.use_custom_stoploss_type.value == 'candle_close_atr':
+                last_candle_index = len(dataframe) - 1
+                stoploss_price = self._calculate_stoploss_price_candle_close_atr(dataframe, last_candle_index)
             else:
                 # Fallback to default
                 stoploss_price = current_rate * (1 + self.stoploss)

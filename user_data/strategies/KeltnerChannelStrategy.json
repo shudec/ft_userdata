@@ -1,0 +1,40 @@
+{
+  "strategy_name": "KeltnerChannelStrategy",
+  "params": {
+    "roi": {},
+    "stoploss": {
+      "stoploss": -0.1
+    },
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "entry_adx_threshold": 5,
+      "rsi_entry_max": 70,
+      "rsi_entry_min": 10,
+      "volume_factor": 0.5,
+      "adx_entry_param": 30,
+      "chop_entry_param": 50
+    },
+    "sell": {
+      "atr_stoploss_multiplier": 1.5,
+      "custom_sell_atr_factor": 4.5,
+      "lookback_period_for_stoploss": 5,
+      "stoploss_margin": 0.999,
+      "take_profit_multiplier": 2,
+      "use_custom_sell": true,
+      "use_custom_stoploss_param": true,
+      "use_custom_stoploss_type": "candle_close_atr",
+      "use_sell_signal_param": false
+    },
+    "protection": {}
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2025-10-08 20:24:18.680311+00:00"
+}
