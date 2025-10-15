@@ -119,6 +119,7 @@ class EMAStrategy(BaseStrategy):
             "ema8": {"color": "red"},
             "ema21": {"color": "orange"},
             "ema54": {"color": "blue"},
+            "sma200": {"color": "lightblue"},
             "stoploss_prices": {
                 "color": "grey",
                 "linestyle": "dotted",
@@ -415,7 +416,8 @@ class EMAStrategy(BaseStrategy):
         """
         dataframe.loc[
             (
-                dataframe["ema_bullish"]
+                (dataframe["ema_bullish"])
+                & (dataframe["close"] > dataframe["sma200"])
                 & (dataframe["volume"] > 0)  # Make sure Volume is not 0
             ),
             "enter_long",
