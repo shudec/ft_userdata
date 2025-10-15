@@ -112,7 +112,6 @@ class EMAStrategy(BaseStrategy):
 
     plot_config = {
         "main_plot": {
-            "sma200": {},
             "custom_exit_signal": {
                 "color": "orange",
             },
@@ -292,7 +291,8 @@ class EMAStrategy(BaseStrategy):
         dataframe['ema8'] = ta.EMA(dataframe, timeperiod=8)
         dataframe['ema21'] = ta.EMA(dataframe, timeperiod=21)
         dataframe['ema54'] = ta.EMA(dataframe, timeperiod=54)
-        dataframe['ema_bullish'] = (dataframe['ema8'] > dataframe['ema21']) & (dataframe['ema21'] > dataframe['ema54'])
+        # dataframe['ema_bullish'] = (dataframe['ema8'] > dataframe['ema21']) & (dataframe['ema21'] > dataframe['ema54'])
+        dataframe['ema_bullish'] = ((qtpylib.crossed_above(dataframe['ema8'], dataframe['ema21'])) & (dataframe['ema21'] > dataframe['ema54'])) | ((qtpylib.crossed_above(dataframe['ema21'], dataframe['ema54'])) & (dataframe['ema8'] > dataframe['ema21']))
 
         # # SMA - Simple Moving Average
         # dataframe['sma3'] = ta.SMA(dataframe, timeperiod=3)
@@ -435,7 +435,7 @@ class EMAStrategy(BaseStrategy):
         if self.use_sell_signal_param.value:
             dataframe.loc[
                 (
-                    not dataframe["ema_bullish"]
+                    (dataframe["close"] < dataframe["ema21"])
                     & (dataframe["volume"] > 0)  # Make sure Volume is not 0
                 ),
                 "exit_long",
