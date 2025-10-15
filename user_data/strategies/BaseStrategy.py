@@ -483,6 +483,7 @@ class BaseStrategy(IStrategy):
         #                                is_short=trade.is_short, leverage=trade.leverage)
         if self.use_custom_stoploss_param.value:
             ratio = trade.get_custom_data("stop_price_ratio")
+            # print(f"Custom sell check for {pair} at {current_time} with stored ratio {ratio}")
         else:
             ratio = -self.stoploss
         # print(f"Custom sell check for {pair} at {current_time} with stored ratio {ratio}")

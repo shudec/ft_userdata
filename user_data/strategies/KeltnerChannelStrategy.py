@@ -89,7 +89,7 @@ class KeltnerChannelStrategy(BaseStrategy):
     process_only_new_candles = True
 
     # These values can be overridden in the config.
-    use_exit_signal = False
+    # use_exit_signal = False
     exit_profit_only = False
     ignore_roi_if_entry_signal = False
 
