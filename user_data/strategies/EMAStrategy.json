@@ -29,7 +29,7 @@
       "use_custom_sell": true,
       "use_custom_stoploss_param": true,
       "use_custom_stoploss_type": "lower",
-      "use_sell_signal_param": false
+      "use_sell_signal_param": true
     },
     "protection": {}
   },

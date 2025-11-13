@@ -38,7 +38,7 @@ from technical import qtpylib
 
 
 # This class is a sample. Feel free to customize it.
-class EMAStrategy(BaseStrategy):
+class VWAPStrategy(BaseStrategy):
     """
     This is a sample strategy to inspire you.
     More information in https://www.freqtrade.io/en/latest/strategy-customization/
@@ -93,11 +93,6 @@ class EMAStrategy(BaseStrategy):
     exit_profit_only = False
     ignore_roi_if_entry_signal = False
 
-    # Hyperopt parameters
-    short_period = IntParameter(5, 50, default=20, space="buy", optimize=True)
-    mid_period = IntParameter(20, 100, default=50, space="buy", optimize=True)
-    long_period = IntParameter(50, 200, default=120, space="buy", optimize=True)
-
 
     # Hyperoptable parameters
 
@@ -120,18 +115,16 @@ class EMAStrategy(BaseStrategy):
             "custom_exit_signal": {
                 "color": "orange",
             },
-            "emashort": {"color": "red"},
-            "emamid": {"color": "orange"},
-            "emalong": {"color": "blue"},
-            "sma200": {"color": "lightblue"},
+            "ema200": {"color": "lightblue"},
+            "vwap": {"color": "purple"},
             "stoploss_prices": {
                 "color": "grey",
                 "linestyle": "dotted",
             },
         },
         "subplots": {
-            "ema_bullish": {
-                "ema_bullish": {"color": "green"},
+            "adx": {
+                "adx": {"color": "yellow"},
             },
         }
     }
@@ -165,16 +158,13 @@ class EMAStrategy(BaseStrategy):
         # ------------------------------------
 
         # SMA 200
-        dataframe["sma200"] = ta.SMA(dataframe, timeperiod=200)
+        # dataframe["sma200"] = ta.SMA(dataframe, timeperiod=200)
 
         # EMA 200
         dataframe["ema200"] = ta.EMA(dataframe, timeperiod=200)
-        dataframe["emashort"] = ta.EMA(dataframe, timeperiod=self.short_period.value)
-        dataframe["emamid"] = ta.EMA(dataframe, timeperiod=self.mid_period.value)
-        dataframe["emalong"] = ta.EMA(dataframe, timeperiod=self.long_period.value)
 
         # ADX
-        # dataframe["adx"] = ta.ADX(dataframe)
+        dataframe["adx"] = ta.ADX(dataframe)
 
         # # Plus Directional Indicator / Movement
         # dataframe['plus_dm'] = ta.PLUS_DM(dataframe)
@@ -213,10 +203,13 @@ class EMAStrategy(BaseStrategy):
         # dataframe['cci'] = ta.CCI(dataframe)
 
         # RSI
-        dataframe["rsi"] = ta.RSI(dataframe, timeperiod=self.mid_period.value)
+        dataframe["rsi"] = ta.RSI(dataframe)
 
         #ATR
         dataframe['atr'] = ta.ATR(dataframe)
+
+        #VWAP
+        dataframe['vwap'] = qtpylib.rolling_vwap(dataframe)
 
         #stoploss
         # dataframe['stoploss'] = dataframe['close'] - (dataframe['atr'] * 2)
@@ -230,9 +223,9 @@ class EMAStrategy(BaseStrategy):
         # dataframe['fisher_rsi_norma'] = 50 * (dataframe['fisher_rsi'] + 1)
 
         # Stochastic Slow
-        stoch = ta.STOCH(dataframe)
-        dataframe['slowd'] = stoch['slowd']
-        dataframe['slowk'] = stoch['slowk']
+        # stoch = ta.STOCH(dataframe)
+        # dataframe['slowd'] = stoch['slowd']
+        # dataframe['slowk'] = stoch['slowk']
 
         # Stochastic Fast
         # stoch_fast = ta.STOCHF(dataframe)
@@ -247,10 +240,10 @@ class EMAStrategy(BaseStrategy):
         # dataframe['fastk_rsi'] = stoch_rsi['fastk']
 
         # MACD
-        macd = ta.MACD(dataframe)
-        dataframe["macd"] = macd["macd"]
-        dataframe["macdsignal"] = macd["macdsignal"]
-        dataframe["macdhist"] = macd["macdhist"]
+        # macd = ta.MACD(dataframe)
+        # dataframe["macd"] = macd["macd"]
+        # dataframe["macdsignal"] = macd["macdsignal"]
+        # dataframe["macdhist"] = macd["macdhist"]
 
         # MFI
         # dataframe["mfi"] = ta.MFI(dataframe)
@@ -300,7 +293,7 @@ class EMAStrategy(BaseStrategy):
         # dataframe['ema21'] = ta.EMA(dataframe, timeperiod=21)
         # dataframe['ema54'] = ta.EMA(dataframe, timeperiod=54)
         # dataframe['ema_bullish'] = (dataframe['ema8'] > dataframe['ema21']) & (dataframe['ema21'] > dataframe['ema54'])
-        dataframe['ema_bullish'] = ((qtpylib.crossed_above(dataframe['emashort'], dataframe['emamid'])) & (dataframe['emamid'] > dataframe['emalong'])) | ((qtpylib.crossed_above(dataframe['emamid'], dataframe['emalong'])) & (dataframe['emashort'] > dataframe['emamid']))
+        # dataframe['ema_bullish'] = ((qtpylib.crossed_above(dataframe['ema8'], dataframe['ema21'])) & (dataframe['ema21'] > dataframe['ema54'])) | ((qtpylib.crossed_above(dataframe['ema21'], dataframe['ema54'])) & (dataframe['ema8'] > dataframe['ema21']))
 
         # # SMA - Simple Moving Average
         # dataframe['sma3'] = ta.SMA(dataframe, timeperiod=3)
@@ -424,10 +417,9 @@ class EMAStrategy(BaseStrategy):
         """
         dataframe.loc[
             (
-                (dataframe["ema_bullish"])
-                & (dataframe["rsi"] > 50)
-                & ((dataframe["slowd"].shift(2) < 20) | (dataframe["slowd"].shift(1) < 20))
-                & ((qtpylib.crossed_above(dataframe["close"], dataframe["emamid"])) | (qtpylib.crossed_above(dataframe["close"], dataframe["emashort"])))
+                (dataframe["close"] > dataframe["ema200"])
+                & (dataframe["close"] > dataframe["vwap"])
+                & (dataframe["adx"] > 25)
                 & (dataframe["volume"] > 0)  # Make sure Volume is not 0
             ),
             "enter_long",
@@ -445,13 +437,10 @@ class EMAStrategy(BaseStrategy):
         if self.use_sell_signal_param.value:
             dataframe.loc[
                 (
-                    (dataframe["ema_bullish"])
-                    & (dataframe["rsi"] > 50)
-                    & (dataframe["slowd"].shift(1) > 20)
-                    & (dataframe["slowd"] < 20)
+                    (dataframe["close"] < dataframe["ema200"])
                     & (dataframe["volume"] > 0)  # Make sure Volume is not 0
-            ),
-            "exit_long",
+                ),
+                "exit_long",
             ] = 1
 
         return dataframe

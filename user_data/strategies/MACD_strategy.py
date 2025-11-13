@@ -204,6 +204,8 @@ class MACDStrategy(BaseStrategy):
 
         # RSI
         dataframe["rsi"] = ta.RSI(dataframe)
+        # True if RSI crossed above oversold level 30 in the previous candle
+        dataframe["rsi_oversold_X_candle_before"] = (dataframe["rsi"].rolling(window=10).min() < 30)
 
         #ATR
         dataframe['atr'] = ta.ATR(dataframe)
@@ -384,7 +386,8 @@ class MACDStrategy(BaseStrategy):
         """
         dataframe.loc[
             (
-                (qtpylib.crossed_above(dataframe["macd"], dataframe["macdsignal"]))
+                (dataframe["rsi_oversold_X_candle_before"])
+                & (qtpylib.crossed_above(dataframe["macd"], dataframe["macdsignal"]))
                 & (dataframe["macdsignal"] < 0)  # MACD signal below zero
                 & (dataframe["close"] > dataframe["sma200"])  # Guard: price above SMA200
                 & (dataframe["volume"] > 0)  # Make sure Volume is not 0
